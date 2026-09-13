@@ -6,6 +6,7 @@ describe("Content-Security-Policy", () => {
     const policy = contentSecurityPolicy(true, "nonce123");
     expect(policy).toContain("'nonce-nonce123'");
     expect(policy).not.toContain("script-src 'self' 'unsafe-inline'");
+    expect(policy).not.toContain("style-src 'self' 'unsafe-inline'");
     expect(policy).toContain("object-src 'none'");
   });
 });

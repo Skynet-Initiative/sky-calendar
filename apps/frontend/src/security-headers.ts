@@ -3,8 +3,7 @@ export function contentSecurityPolicy(production: boolean, nonce: string) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${production ? "" : " 'unsafe-eval'"}`,
     "script-src-attr 'none'",
-    // The imported MIT calendar core positions events with generated style attributes.
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self'",
     "font-src 'self'",
     "img-src 'self'",
     "connect-src 'self'",
