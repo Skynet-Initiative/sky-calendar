@@ -20,6 +20,8 @@ export interface CalendarEvent<TMeta = unknown> {
   readonly end?: Date | ZonedDateTime;
   /** Whether the event occupies the all-day band rather than a time slot. */
   readonly allDay?: boolean;
+  /** IANA zone governing wall-time and all-day portability. */
+  readonly timeZone?: string;
   /** Plain-text title. Never rendered as HTML. */
   readonly title?: string;
   /** Plain-text description exported by portable formats. */

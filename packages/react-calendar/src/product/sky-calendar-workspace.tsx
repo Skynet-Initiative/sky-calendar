@@ -467,6 +467,7 @@ export function SkyCalendarWorkspace({
         start: new Date(item.start),
         end: new Date(item.end),
         allDay: item.allDay,
+        timeZone: item.timeZone,
         status: item.status,
         recurrenceRule: item.recurrenceRule ?? undefined,
         recurrenceExceptions: item.recurrenceExceptions.map(

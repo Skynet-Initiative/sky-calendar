@@ -95,7 +95,7 @@ export function eventsToIcs(
     lines.push(fold(`UID:${esc(event.id)}@calendar.skynet-initiative.com`));
     lines.push(`DTSTAMP:${utcStamp(startMs)}`);
     if (event.allDay === true) {
-      const zone = zoneOf(event.start, options.zone);
+      const zone = zoneOf(event.start, event.timeZone ?? options.zone);
       lines.push(`DTSTART;VALUE=DATE:${localDate(startMs, zone)}`);
       lines.push(`DTEND;VALUE=DATE:${localDate(endMs, zone)}`);
     } else {
@@ -119,11 +119,15 @@ export function eventsToIcs(
       if (/^[A-Z0-9=;,\-+]+$/.test(rule)) lines.push(`RRULE:${rule}`);
     }
     if (event.recurrenceExceptions?.length) {
+      const zone = event.timeZone ?? options.zone;
+      const values = event.recurrenceExceptions.map((exception) =>
+        event.allDay === true
+          ? localDate(epochOf(exception), zone)
+          : utcStamp(epochOf(exception)),
+      );
       lines.push(
         fold(
-          `EXDATE:${event.recurrenceExceptions
-            .map((exception) => utcStamp(epochOf(exception)))
-            .join(",")}`,
+          `${event.allDay === true ? "EXDATE;VALUE=DATE" : "EXDATE"}:${values.join(",")}`,
         ),
       );
     }
