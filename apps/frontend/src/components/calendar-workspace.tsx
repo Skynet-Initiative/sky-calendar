@@ -23,6 +23,9 @@ const transport: SkyCalendarTransport = {
   async listEvents(from, to) {
     return events.filter((event) => event.start < to && event.end > from);
   },
+  async exportEvents() {
+    return [...events];
+  },
   async createEvent(calendarId, input) {
     const event = productEvent(crypto.randomUUID(), calendarId, input);
     events.push(event);

@@ -46,6 +46,7 @@ interface Draft {
   description: string;
   recurrenceRule: string;
   attendees: string;
+  timeZone: string;
   occurrenceStart: string | null;
   scope: "occurrence" | "series";
 }
@@ -158,6 +159,7 @@ export function SkyCalendarWorkspace({
       description: "",
       recurrenceRule: "",
       attendees: "",
+      timeZone,
       occurrenceStart: null,
       scope: "series",
     });
@@ -222,13 +224,14 @@ export function SkyCalendarWorkspace({
       id: item.id,
       calendarId: item.calendarId,
       title: item.title,
-      start: localInputFromInstant(new Date(item.start), timeZone),
-      end: localInputFromInstant(new Date(item.end), timeZone),
+      start: localInputFromInstant(new Date(item.start), item.timeZone),
+      end: localInputFromInstant(new Date(item.end), item.timeZone),
       allDay: item.allDay,
       location: item.location ?? "",
       description: item.description ?? "",
       recurrenceRule: item.recurrenceRule ?? "",
       attendees: item.attendees.map((attendee) => attendee.email).join(", "),
+      timeZone: item.timeZone,
       occurrenceStart: item.recurrenceRule ? item.start : null,
       scope: item.recurrenceRule ? "occurrence" : "series",
     });
@@ -284,7 +287,7 @@ export function SkyCalendarWorkspace({
     if (!draft || !draft.title.trim() || saving) return;
     let input: ProductEventInput;
     try {
-      input = draftInput(draft, timeZone);
+      input = draftInput(draft);
       if (Date.parse(input.start) >= Date.parse(input.end)) {
         setDraftError("The end must be after the start.");
         return;
@@ -449,27 +452,42 @@ export function SkyCalendarWorkspace({
     }
   }
 
-  function exportEvents(event: MouseEvent<HTMLButtonElement>) {
-    const format = event.currentTarget.value;
-    const exportable = events.map((item) => ({
-      id: item.id,
-      title: item.title,
-      start: new Date(item.start),
-      end: new Date(item.end),
-      allDay: item.allDay,
-      status: item.status,
-      recurrenceRule: item.recurrenceRule ?? undefined,
-    }));
-    const ics = format === "ics";
-    const contents = ics
-      ? eventsToIcs(exportable, { zone: timeZone })
-      : eventsToCsv(exportable);
-    downloadFile(
-      contents,
-      ics ? "text/calendar;charset=utf-8" : "text/csv;charset=utf-8",
-      `sky-calendar.${format}`,
-    );
-    setMessage(`Calendar exported as ${format.toUpperCase()}.`);
+  async function exportEvents(event: MouseEvent<HTMLButtonElement>) {
+    const format = event.currentTarget.value === "csv" ? "csv" : "ics";
+    setSaving(true);
+    try {
+      const allEvents = await transport.exportEvents();
+      const exportable = allEvents.map((item) => ({
+        id: item.id,
+        title: item.title,
+        description: item.description ?? undefined,
+        location: item.location ?? undefined,
+        attendees: item.attendees.map((attendee) => attendee.email),
+        visibility: item.visibility,
+        start: new Date(item.start),
+        end: new Date(item.end),
+        allDay: item.allDay,
+        status: item.status,
+        recurrenceRule: item.recurrenceRule ?? undefined,
+        recurrenceExceptions: item.recurrenceExceptions.map(
+          (value) => new Date(value),
+        ),
+      }));
+      const ics = format === "ics";
+      const contents = ics
+        ? eventsToIcs(exportable, { zone: timeZone })
+        : eventsToCsv(exportable);
+      downloadFile(
+        contents,
+        ics ? "text/calendar;charset=utf-8" : "text/csv;charset=utf-8",
+        `sky-calendar.${format}`,
+      );
+      setMessage(`Calendar exported as ${format.toUpperCase()}.`);
+    } catch (error) {
+      report(error, "The calendar could not be exported.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const days = viewDays(cursor, view);
@@ -496,6 +514,7 @@ export function SkyCalendarWorkspace({
             type="button"
             value="ics"
             onClick={exportEvents}
+            disabled={saving}
           >
             Export ICS
           </button>
@@ -504,6 +523,7 @@ export function SkyCalendarWorkspace({
             type="button"
             value="csv"
             onClick={exportEvents}
+            disabled={saving}
           >
             Export CSV
           </button>
@@ -666,6 +686,7 @@ export function SkyCalendarWorkspace({
               <input name="allDay" type="checkbox" checked={draft.allDay} />
               All day
             </label>
+            <p className="skycal__field-note">Time zone: {draft.timeZone}</p>
             {calendars.length > 1 ? (
               <label className="skycal__field">
                 <span>Calendar</span>
@@ -1035,7 +1056,7 @@ function Agenda({
   );
 }
 
-function draftInput(draft: Draft, timeZone: string): ProductEventInput {
+function draftInput(draft: Draft): ProductEventInput {
   const attendees = draft.attendees
     .split(",")
     .map((email) => email.trim())
@@ -1045,10 +1066,10 @@ function draftInput(draft: Draft, timeZone: string): ProductEventInput {
     title: draft.title.trim(),
     ...(draft.description ? { description: draft.description } : {}),
     ...(draft.location ? { location: draft.location } : {}),
-    start: instantFromLocalInput(draft.start, timeZone).toISOString(),
-    end: instantFromLocalInput(draft.end, timeZone).toISOString(),
+    start: instantFromLocalInput(draft.start, draft.timeZone).toISOString(),
+    end: instantFromLocalInput(draft.end, draft.timeZone).toISOString(),
     allDay: draft.allDay,
-    timeZone,
+    timeZone: draft.timeZone,
     ...(draft.recurrenceRule ? { recurrenceRule: draft.recurrenceRule } : {}),
     recurrenceExceptions: [],
     status: "confirmed",

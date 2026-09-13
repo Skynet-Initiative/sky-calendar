@@ -47,6 +47,7 @@ integration("CalendarService PostgreSQL isolation", () => {
           "2026-10-01T00:00:00.000Z",
         ),
       ).resolves.toHaveLength(1);
+      await expect(service.exportEvents(workspaceA)).resolves.toHaveLength(1);
       await expect(
         service.replaceEvent(workspaceB, eventA.id, input),
       ).rejects.toMatchObject({ status: 404 });

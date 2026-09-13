@@ -50,6 +50,15 @@ export class CalendarController {
     return this.service.listEvents(workspaceId, from, to);
   }
 
+  @Get("events/export")
+  exportEvents(
+    @Req() request: AuthenticatedRequest,
+    @Param("workspaceId") workspaceId: string,
+  ) {
+    requireAction(request, workspaceId, "read");
+    return this.service.exportEvents(workspaceId);
+  }
+
   @Post("calendars/:calendarId/events")
   createEvent(
     @Req() request: AuthenticatedRequest,

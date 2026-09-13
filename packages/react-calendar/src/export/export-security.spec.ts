@@ -42,4 +42,27 @@ describe("calendar exports", () => {
       expect(encoder.encode(line).length).toBeLessThanOrEqual(75);
     }
   });
+
+  it("preserves portable event details and recurrence exceptions", () => {
+    const detailed = {
+      ...event,
+      description: "Preparation notes",
+      location: "Room 3",
+      attendees: ["guest@example.com"],
+      visibility: "private" as const,
+      recurrenceRule: "FREQ=WEEKLY;COUNT=4",
+      recurrenceExceptions: [new Date("2026-09-21T12:00:00.000Z")],
+    };
+    const ics = eventsToIcs([detailed], { zone: "UTC" });
+    expect(ics).toContain("DESCRIPTION:Preparation notes");
+    expect(ics).toContain("LOCATION:Room 3");
+    expect(ics).toContain("ATTENDEE:mailto:guest@example.com");
+    expect(ics).toContain("CLASS:PRIVATE");
+    expect(ics).toContain("EXDATE:20260921T120000Z");
+
+    const csv = eventsToCsv([detailed]);
+    expect(csv).toContain("description,location,attendees,visibility");
+    expect(csv).toContain("guest@example.com");
+    expect(csv).toContain("2026-09-21T12:00:00.000Z");
+  });
 });

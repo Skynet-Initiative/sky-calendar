@@ -8,6 +8,12 @@ const COLUMNS = [
   "end",
   "allDay",
   "status",
+  "description",
+  "location",
+  "attendees",
+  "visibility",
+  "recurrenceRule",
+  "recurrenceExceptions",
   "resourceIds",
 ] as const;
 
@@ -42,6 +48,14 @@ export function eventsToCsv(events: readonly CalendarEvent[]): string {
       end,
       event.allDay === true ? "true" : "false",
       event.status ?? "",
+      event.description ?? "",
+      event.location ?? "",
+      (event.attendees ?? []).join(";"),
+      event.visibility ?? "default",
+      event.recurrenceRule ?? "",
+      (event.recurrenceExceptions ?? [])
+        .map((exception) => new Date(epochOf(exception)).toISOString())
+        .join(";"),
       (event.resourceIds ?? []).join(";"),
     ];
     rows.push(cells.map((c) => csvField(c)).join(","));

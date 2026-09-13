@@ -77,6 +77,18 @@ export class CalendarService implements OnModuleDestroy {
     return result.rows as unknown[];
   }
 
+  async exportEvents(workspaceId: string) {
+    const result = await this.pool.query(
+      `${EVENT_COLUMNS}
+         FROM calendar_event e
+         JOIN calendar c ON c.id = e.calendar_id
+        WHERE c.workspace_id = $1
+        ORDER BY e.start ASC, e.id ASC`,
+      [workspaceId],
+    );
+    return result.rows as unknown[];
+  }
+
   async createEvent(
     workspaceId: string,
     calendarId: string,

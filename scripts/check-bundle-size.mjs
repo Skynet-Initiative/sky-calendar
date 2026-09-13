@@ -10,7 +10,8 @@ import { dirname, join } from "node:path";
 const DIST = "packages/react-calendar/dist";
 
 // Gzipped budgets in KB. The primary entry carries every view + the recurrence
-// editor; consumers tree-shake to what they import. Secondary entries are tiny.
+// editor; consumers tree-shake to what they import. The product entry includes
+// complete ICS/CSV portability. Secondary entries are tiny.
 // The 54 KB main budget matches the Angular package's main entry so the two
 // stay at parity.
 const BUDGETS = [
@@ -18,7 +19,7 @@ const BUDGETS = [
   { file: "date-fns.js", kb: 6 },
   { file: "recurrence.js", kb: 6 },
   { file: "export.js", kb: 8 },
-  { file: "product.js", kb: 12 },
+  { file: "product.js", kb: 13 },
 ];
 
 let failed = false;

@@ -22,6 +22,14 @@ export interface CalendarEvent<TMeta = unknown> {
   readonly allDay?: boolean;
   /** Plain-text title. Never rendered as HTML. */
   readonly title?: string;
+  /** Plain-text description exported by portable formats. */
+  readonly description?: string;
+  /** Plain-text location exported by portable formats. */
+  readonly location?: string;
+  /** Validated guest email addresses exported as RFC 5545 attendees. */
+  readonly attendees?: readonly string[];
+  /** Calendar visibility classification. */
+  readonly visibility?: "default" | "public" | "private";
   /** Resource lane(s) this event belongs to (timeline/resource views). */
   readonly resourceIds?: readonly string[];
   /** Status key into the consumer's `statusColors` map (drives `--cal-event-*`). */

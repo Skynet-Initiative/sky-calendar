@@ -16,7 +16,7 @@
     "build:calendar": "bun --filter @skynet-initiative/sky-calendar build && bun scripts/check-bundle-size.mjs",
     "build:frontend": "bun --filter @sky-calendar/frontend build",
     "build:backend": "bun --filter @sky-calendar/backend build",
-    "typecheck": "bun run build:contracts && bun --filter '*' typecheck",
+    "typecheck": "bun run build:contracts && bun run build:calendar && bun --filter '*' typecheck",
     "lint": "eslint \"{apps,packages}/**/*.{ts,tsx}\" --max-warnings=0",
     "test": "bun run build:contracts && bun --filter @skynet-initiative/sky-calendar test && bun --filter @skynet-initiative/sky-calendar-contracts test && bun --filter @sky-calendar/backend test && bun --filter @sky-calendar/frontend test",
     "format": "prettier . --write",

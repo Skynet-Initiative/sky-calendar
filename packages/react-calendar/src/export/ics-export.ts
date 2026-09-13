@@ -105,9 +105,27 @@ export function eventsToIcs(
     if (event.title !== undefined && event.title !== "") {
       lines.push(fold(`SUMMARY:${esc(event.title)}`));
     }
+    if (event.description)
+      lines.push(fold(`DESCRIPTION:${esc(event.description)}`));
+    if (event.location) lines.push(fold(`LOCATION:${esc(event.location)}`));
+    for (const attendee of event.attendees ?? []) {
+      lines.push(fold(`ATTENDEE:mailto:${esc(attendee)}`));
+    }
+    if (event.visibility && event.visibility !== "default") {
+      lines.push(`CLASS:${event.visibility.toUpperCase()}`);
+    }
     if (event.recurrenceRule !== undefined && event.recurrenceRule !== "") {
       const rule = event.recurrenceRule.replace(/^RRULE:/, "");
       if (/^[A-Z0-9=;,\-+]+$/.test(rule)) lines.push(`RRULE:${rule}`);
+    }
+    if (event.recurrenceExceptions?.length) {
+      lines.push(
+        fold(
+          `EXDATE:${event.recurrenceExceptions
+            .map((exception) => utcStamp(epochOf(exception)))
+            .join(",")}`,
+        ),
+      );
     }
     if (event.status !== undefined) {
       lines.push(fold(`CATEGORIES:${esc(event.status)}`));

@@ -12,7 +12,7 @@ import {
   SkyCalendarWorkspace,
   type SkyCalendarTransport,
 } from "@skynet-initiative/sky-calendar/product";
-import "@skynet-initiative/sky-calendar/styles/product.css";
+import "@skynet-initiative/sky-calendar/styles.css";
 
 export function CalendarPage({
   transport,
@@ -23,7 +23,8 @@ export function CalendarPage({
 }
 ```
 
-The host implements `SkyCalendarTransport`. Keep authentication, entitlement
+The host implements `SkyCalendarTransport`, including its full-workspace
+`exportEvents` query. Keep authentication, entitlement
 checks and package tokens in its server-side BFF; the browser transport only
 calls same-origin authenticated routes. Date strings crossing the transport
 are UTC ISO instants, while `timeZone` is an explicit IANA zone used for input,

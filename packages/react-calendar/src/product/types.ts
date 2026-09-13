@@ -51,6 +51,7 @@ export interface SkyCalendarTransport {
     timeZone: string;
   }): Promise<ProductCalendar>;
   listEvents(from: string, to: string): Promise<ProductEvent[]>;
+  exportEvents(): Promise<ProductEvent[]>;
   createEvent(
     calendarId: string,
     input: ProductEventInput,

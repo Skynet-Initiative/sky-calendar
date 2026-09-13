@@ -343,6 +343,11 @@
   color: var(--skycal-muted);
   font-size: 0.8rem;
 }
+.skycal__field-note {
+  margin: 0;
+  color: var(--skycal-muted);
+  font-size: 0.8125rem;
+}
 .skycal__field input,
 .skycal__field select,
 .skycal__field textarea {
