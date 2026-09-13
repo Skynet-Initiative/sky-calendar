@@ -5,6 +5,7 @@
  */
 import { gzipSync } from "node:zlib";
 import { readFileSync, existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 const DIST = "packages/react-calendar/dist";
 
@@ -17,6 +18,7 @@ const BUDGETS = [
   { file: "date-fns.js", kb: 6 },
   { file: "recurrence.js", kb: 6 },
   { file: "export.js", kb: 8 },
+  { file: "product.js", kb: 12 },
 ];
 
 let failed = false;
@@ -30,7 +32,7 @@ for (const { file, kb } of BUDGETS) {
   }
   // Chunks shared via code splitting count toward the entry importing them;
   // measure the entry plus its relative chunk imports.
-  const gz = gzipSync(readFileSync(path)).length;
+  const gz = entrySize(path);
   total += gz;
   const budget = kb * 1024;
   const status = gz <= budget ? "✔" : "✗";
@@ -44,4 +46,19 @@ for (const { file, kb } of BUDGETS) {
 console.log(`  total entries: ${(total / 1024).toFixed(1)} KB gzip`);
 if (failed) {
   process.exit(1);
+}
+
+function entrySize(path, seen = new Set()) {
+  if (seen.has(path)) return 0;
+  seen.add(path);
+  const source = readFileSync(path);
+  const text = source.toString("utf8");
+  const imported = [...text.matchAll(/(?:from\s+|import\s*)["'](\.\/[^"']+\.js)["']/g)];
+  return (
+    gzipSync(source).length +
+    imported.reduce(
+      (size, match) => size + entrySize(join(dirname(path), match[1]), seen),
+      0,
+    )
+  );
 }

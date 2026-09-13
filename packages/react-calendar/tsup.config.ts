@@ -19,6 +19,7 @@ export default defineConfig({
     "date-fns": "src/date-fns/index.ts",
     recurrence: "src/recurrence/index.ts",
     export: "src/export/index.ts",
+    product: "src/product/index.ts",
   },
   format: ["esm"],
   dts: true,
@@ -37,7 +38,7 @@ export default defineConfig({
   onSuccess: async () => {
     // Add the directive after Rollup to avoid its module-directive warning while
     // preserving the React Server Components boundary in the published files.
-    for (const name of ["index.js"]) {
+    for (const name of ["index.js", "product.js"]) {
       const entry = join(import.meta.dirname, "dist", name);
       const js = readFileSync(entry, "utf8");
       if (!js.startsWith('"use client";')) {

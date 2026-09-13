@@ -54,6 +54,10 @@
       "types": "./dist/export.d.ts",
       "import": "./dist/export.js"
     },
+    "./product": {
+      "types": "./dist/product.d.ts",
+      "import": "./dist/product.js"
+    },
     "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"
   },
