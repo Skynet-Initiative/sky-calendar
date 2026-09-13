@@ -106,4 +106,76 @@ describe("SkyCalendarWorkspace", () => {
       await screen.findAllByRole("button", { name: /Daily sync/i }),
     ).toHaveLength(3);
   });
+
+  it("edits one recurrence by creating an exception instead of replacing the series", async () => {
+    const recurring: ProductEvent = {
+      id: "event-recurring",
+      calendarId: calendar.id,
+      title: "Daily sync",
+      description: null,
+      location: null,
+      start: "2026-09-01T09:00:00.000Z",
+      end: "2026-09-01T09:30:00.000Z",
+      allDay: false,
+      timeZone: "UTC",
+      recurrenceRule: "FREQ=DAILY;COUNT=3",
+      recurrenceExceptions: [],
+      status: "confirmed",
+      visibility: "default",
+      attendees: [],
+    };
+    const standalone = {
+      ...recurring,
+      id: "event-exception",
+      title: "Moved sync",
+      recurrenceRule: null,
+    };
+    const replaceEvent = vi
+      .fn()
+      .mockImplementation(
+        async (_id: string, input: { recurrenceExceptions?: string[] }) => ({
+          ...recurring,
+          recurrenceExceptions: input.recurrenceExceptions ?? [],
+        }),
+      );
+    const createEvent = vi.fn().mockResolvedValue(standalone);
+    const transport: SkyCalendarTransport = {
+      listCalendars: vi.fn().mockResolvedValue([calendar]),
+      createCalendar: vi.fn(),
+      listEvents: vi.fn().mockResolvedValue([recurring]),
+      createEvent,
+      replaceEvent,
+      deleteEvent: vi.fn(),
+    };
+
+    render(
+      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
+    );
+    const occurrences = await screen.findAllByRole("button", {
+      name: /Daily sync/i,
+    });
+    const occurrence = occurrences[1];
+    if (!occurrence) throw new Error("recurrence instance not rendered");
+    fireEvent.click(occurrence);
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Moved sync" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(createEvent).toHaveBeenCalledOnce());
+    expect(replaceEvent).toHaveBeenCalledWith(
+      recurring.id,
+      expect.objectContaining({
+        recurrenceRule: recurring.recurrenceRule,
+        recurrenceExceptions: ["2026-09-02T09:00:00.000Z"],
+      }),
+    );
+    expect(createEvent).toHaveBeenCalledWith(
+      calendar.id,
+      expect.objectContaining({
+        title: "Moved sync",
+        recurrenceRule: undefined,
+      }),
+    );
+  });
 });

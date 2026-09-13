@@ -10,12 +10,21 @@ import {
   type MouseEvent,
 } from "react";
 import { rrulestr } from "rrule";
+import { eventsToCsv, eventsToIcs } from "../export";
 import type {
   ProductCalendar,
   ProductEvent,
   ProductEventInput,
   SkyCalendarTransport,
 } from "./types";
+import {
+  dateKey,
+  instantFromLocalInput,
+  instantFromWallDate,
+  localInputFromInstant,
+  localInputFromWallDate,
+  wallDateFromInstant,
+} from "./zoned-time";
 
 type View = "month" | "week" | "day" | "agenda";
 
@@ -37,6 +46,8 @@ interface Draft {
   description: string;
   recurrenceRule: string;
   attendees: string;
+  occurrenceStart: string | null;
+  scope: "occurrence" | "series";
 }
 
 interface DisplayEvent extends ProductEvent {
@@ -55,7 +66,9 @@ export function SkyCalendarWorkspace({
   onError,
 }: SkyCalendarWorkspaceProps) {
   const [view, setView] = useState<View>("month");
-  const [cursor, setCursor] = useState(startOfDay(new Date()));
+  const [cursor, setCursor] = useState(() =>
+    startOfDay(wallDateFromInstant(new Date(), timeZone)),
+  );
   const [calendars, setCalendars] = useState<ProductCalendar[]>([]);
   const [events, setEvents] = useState<ProductEvent[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -67,8 +80,11 @@ export function SkyCalendarWorkspace({
   const [message, setMessage] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const calendarDialogRef = useRef<HTMLDialogElement>(null);
-  const draggedId = useRef<string | null>(null);
-  const period = useMemo(() => visiblePeriod(cursor, view), [cursor, view]);
+  const draggedKey = useRef<string | null>(null);
+  const period = useMemo(
+    () => visiblePeriod(cursor, view, timeZone),
+    [cursor, timeZone, view],
+  );
 
   useEffect(() => {
     let live = true;
@@ -135,19 +151,21 @@ export function SkyCalendarWorkspace({
       id: null,
       calendarId,
       title: "",
-      start: localInput(normalizedStart),
-      end: localInput(end),
+      start: localInputFromWallDate(normalizedStart),
+      end: localInputFromWallDate(end),
       allDay,
       location: "",
       description: "",
       recurrenceRule: "",
       attendees: "",
+      occurrenceStart: null,
+      scope: "series",
     });
   }
 
   function handleCreateNow() {
-    const now = new Date();
-    now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
+    const now = wallDateFromInstant(new Date(), timeZone);
+    now.setUTCMinutes(Math.ceil(now.getUTCMinutes() / 15) * 15, 0, 0);
     openCreate(now);
   }
 
@@ -194,8 +212,9 @@ export function SkyCalendarWorkspace({
   }
 
   function handleEventClick(event: MouseEvent<HTMLButtonElement>) {
-    const item = events.find(
-      (candidate) => candidate.id === event.currentTarget.dataset.eventId,
+    const instanceKey = event.currentTarget.dataset.instanceKey;
+    const item = displayEvents.find(
+      (candidate) => candidate.instanceKey === instanceKey,
     );
     if (!item) return;
     setDraftError("");
@@ -203,13 +222,15 @@ export function SkyCalendarWorkspace({
       id: item.id,
       calendarId: item.calendarId,
       title: item.title,
-      start: localInput(new Date(item.start)),
-      end: localInput(new Date(item.end)),
+      start: localInputFromInstant(new Date(item.start), timeZone),
+      end: localInputFromInstant(new Date(item.end), timeZone),
       allDay: item.allDay,
       location: item.location ?? "",
       description: item.description ?? "",
       recurrenceRule: item.recurrenceRule ?? "",
       attendees: item.attendees.map((attendee) => attendee.email).join(", "),
+      occurrenceStart: item.recurrenceRule ? item.start : null,
+      scope: item.recurrenceRule ? "occurrence" : "series",
     });
   }
 
@@ -227,7 +248,7 @@ export function SkyCalendarWorkspace({
   }
 
   function today() {
-    setCursor(startOfDay(new Date()));
+    setCursor(startOfDay(wallDateFromInstant(new Date(), timeZone)));
   }
 
   function closeDraft() {
@@ -261,8 +282,17 @@ export function SkyCalendarWorkspace({
   async function saveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft || !draft.title.trim() || saving) return;
-    if (Date.parse(draft.start) >= Date.parse(draft.end)) {
-      setDraftError("The end must be after the start.");
+    let input: ProductEventInput;
+    try {
+      input = draftInput(draft, timeZone);
+      if (Date.parse(input.start) >= Date.parse(input.end)) {
+        setDraftError("The end must be after the start.");
+        return;
+      }
+    } catch {
+      setDraftError(
+        "This local time does not exist in the selected time zone.",
+      );
       return;
     }
     if (!validAttendees(draft.attendees)) {
@@ -276,14 +306,50 @@ export function SkyCalendarWorkspace({
         ? (calendars.find((item) => item.id === draft.calendarId) ??
           (await ensureCalendar()))
         : await ensureCalendar();
-      const input = draftInput(draft, timeZone);
-      const saved = draft.id
-        ? await transport.replaceEvent(draft.id, input)
-        : await transport.createEvent(calendar.id, input);
-      setEvents((current) => [
-        ...current.filter((item) => item.id !== saved.id),
-        saved,
-      ]);
+      if (draft.id && draft.occurrenceStart && draft.scope === "occurrence") {
+        const master = events.find((item) => item.id === draft.id);
+        if (!master) throw new Error("Recurring event master not found");
+        const saved = await transport.createEvent(calendar.id, {
+          ...input,
+          recurrenceRule: undefined,
+          recurrenceExceptions: [],
+        });
+        let exception: ProductEvent;
+        try {
+          exception = await transport.replaceEvent(
+            master.id,
+            eventInput(master, new Date(master.start), new Date(master.end), [
+              ...new Set([
+                ...master.recurrenceExceptions,
+                draft.occurrenceStart,
+              ]),
+            ]),
+          );
+        } catch (error) {
+          await transport.deleteEvent(saved.id).catch(() => undefined);
+          throw error;
+        }
+        setEvents((current) => [
+          ...current.filter((item) => item.id !== exception.id),
+          exception,
+          saved,
+        ]);
+      } else {
+        const master = draft.id
+          ? events.find((item) => item.id === draft.id)
+          : undefined;
+        const seriesInput =
+          master && draft.occurrenceStart
+            ? moveSeriesInput(master, input, draft.occurrenceStart)
+            : input;
+        const saved = draft.id
+          ? await transport.replaceEvent(draft.id, seriesInput)
+          : await transport.createEvent(calendar.id, seriesInput);
+        setEvents((current) => [
+          ...current.filter((item) => item.id !== saved.id),
+          saved,
+        ]);
+      }
       setDraft(null);
       setMessage(draft.id ? "Event updated." : "Event created.");
     } catch (error) {
@@ -298,8 +364,23 @@ export function SkyCalendarWorkspace({
     if (!draft?.id || saving) return;
     setSaving(true);
     try {
-      await transport.deleteEvent(draft.id);
-      setEvents((current) => current.filter((item) => item.id !== draft.id));
+      if (draft.occurrenceStart && draft.scope === "occurrence") {
+        const master = events.find((item) => item.id === draft.id);
+        if (!master) throw new Error("Recurring event master not found");
+        const saved = await transport.replaceEvent(
+          master.id,
+          eventInput(master, new Date(master.start), new Date(master.end), [
+            ...master.recurrenceExceptions,
+            draft.occurrenceStart,
+          ]),
+        );
+        setEvents((current) =>
+          current.map((item) => (item.id === saved.id ? saved : item)),
+        );
+      } else {
+        await transport.deleteEvent(draft.id);
+        setEvents((current) => current.filter((item) => item.id !== draft.id));
+      }
       setDraft(null);
       setMessage("Event deleted.");
     } catch (error) {
@@ -310,9 +391,9 @@ export function SkyCalendarWorkspace({
   }
 
   function handleDragStart(event: DragEvent<HTMLButtonElement>) {
-    draggedId.current = event.currentTarget.dataset.eventId ?? null;
-    if (draggedId.current)
-      event.dataTransfer.setData("text/plain", draggedId.current);
+    draggedKey.current = event.currentTarget.dataset.instanceKey ?? null;
+    if (draggedKey.current)
+      event.dataTransfer.setData("text/plain", draggedKey.current);
   }
 
   function allowDrop(event: DragEvent<HTMLElement>) {
@@ -321,15 +402,32 @@ export function SkyCalendarWorkspace({
 
   async function handleDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault();
-    const id = draggedId.current ?? event.dataTransfer.getData("text/plain");
+    const instanceKey =
+      draggedKey.current ?? event.dataTransfer.getData("text/plain");
     const startValue = event.currentTarget.dataset.start;
-    const item = events.find((candidate) => candidate.id === id);
+    const item = displayEvents.find(
+      (candidate) => candidate.instanceKey === instanceKey,
+    );
     if (!item || !startValue) return;
-    const oldStart = new Date(item.start);
-    const newStart = new Date(startValue);
-    if (event.currentTarget.dataset.preserveTime === "true") {
-      newStart.setHours(oldStart.getHours(), oldStart.getMinutes(), 0, 0);
+    if (item.recurrenceRule) {
+      setMessage(
+        "Open a repeating event to choose this occurrence or the series.",
+      );
+      draggedKey.current = null;
+      return;
     }
+    const oldStart = new Date(item.start);
+    const newWallStart = new Date(startValue);
+    if (event.currentTarget.dataset.preserveTime === "true") {
+      const oldWallStart = wallDateFromInstant(oldStart, timeZone);
+      newWallStart.setUTCHours(
+        oldWallStart.getUTCHours(),
+        oldWallStart.getUTCMinutes(),
+        0,
+        0,
+      );
+    }
+    const newStart = instantFromWallDate(newWallStart, timeZone);
     const duration = new Date(item.end).getTime() - oldStart.getTime();
     const input = eventInput(
       item,
@@ -347,8 +445,31 @@ export function SkyCalendarWorkspace({
     } catch (error) {
       report(error, "The event could not be moved.");
     } finally {
-      draggedId.current = null;
+      draggedKey.current = null;
     }
+  }
+
+  function exportEvents(event: MouseEvent<HTMLButtonElement>) {
+    const format = event.currentTarget.value;
+    const exportable = events.map((item) => ({
+      id: item.id,
+      title: item.title,
+      start: new Date(item.start),
+      end: new Date(item.end),
+      allDay: item.allDay,
+      status: item.status,
+      recurrenceRule: item.recurrenceRule ?? undefined,
+    }));
+    const ics = format === "ics";
+    const contents = ics
+      ? eventsToIcs(exportable, { zone: timeZone })
+      : eventsToCsv(exportable);
+    downloadFile(
+      contents,
+      ics ? "text/calendar;charset=utf-8" : "text/csv;charset=utf-8",
+      `sky-calendar.${format}`,
+    );
+    setMessage(`Calendar exported as ${format.toUpperCase()}.`);
   }
 
   const days = viewDays(cursor, view);
@@ -369,6 +490,22 @@ export function SkyCalendarWorkspace({
             onClick={openCalendarDialog}
           >
             New calendar
+          </button>
+          <button
+            className="skycal__button"
+            type="button"
+            value="ics"
+            onClick={exportEvents}
+          >
+            Export ICS
+          </button>
+          <button
+            className="skycal__button"
+            type="button"
+            value="csv"
+            onClick={exportEvents}
+          >
+            Export CSV
           </button>
           <button
             className="skycal__button skycal__button--primary"
@@ -431,6 +568,7 @@ export function SkyCalendarWorkspace({
           days={days}
           events={displayEvents}
           locale={locale}
+          timeZone={timeZone}
           onSlotClick={handleSlotClick}
           onEventClick={handleEventClick}
           onDragStart={handleDragStart}
@@ -443,6 +581,7 @@ export function SkyCalendarWorkspace({
           days={days}
           events={displayEvents}
           locale={locale}
+          timeZone={timeZone}
           onSlotClick={handleSlotClick}
           onEventClick={handleEventClick}
           onDragStart={handleDragStart}
@@ -454,6 +593,7 @@ export function SkyCalendarWorkspace({
         <Agenda
           events={displayEvents}
           locale={locale}
+          timeZone={timeZone}
           onEventClick={handleEventClick}
         />
       ) : null}
@@ -544,6 +684,15 @@ export function SkyCalendarWorkspace({
                 <span>Location</span>
                 <input name="location" value={draft.location} maxLength={500} />
               </label>
+              {draft.occurrenceStart ? (
+                <label className="skycal__field">
+                  <span>Apply changes to</span>
+                  <select name="scope" value={draft.scope}>
+                    <option value="occurrence">This occurrence</option>
+                    <option value="series">Entire series</option>
+                  </select>
+                </label>
+              ) : null}
               <label className="skycal__field">
                 <span>Description</span>
                 <textarea
@@ -663,11 +812,13 @@ function Month({
   days,
   events,
   locale,
+  timeZone,
   ...handlers
 }: {
   days: Date[];
   events: DisplayEvent[];
   locale?: string;
+  timeZone: string;
 } & CalendarHandlers) {
   return (
     <div className="skycal__month" role="group" aria-label="Month view">
@@ -677,7 +828,7 @@ function Month({
         </div>
       ))}
       {days.map((day) => {
-        const items = eventsForDay(events, day);
+        const items = eventsForDay(events, day, timeZone);
         return (
           <div
             className="skycal__day"
@@ -695,7 +846,7 @@ function Month({
               onClick={handlers.onSlotClick}
               aria-label={`Create event on ${formatDay(day, locale)}`}
             >
-              <time dateTime={dateKey(day)}>{day.getDate()}</time>
+              <time dateTime={dateKey(day)}>{day.getUTCDate()}</time>
             </button>
             <div className="skycal__day-events">
               {items.slice(0, 4).map((item) => (
@@ -704,6 +855,7 @@ function Month({
                   key={item.instanceKey}
                   onClick={handlers.onEventClick}
                   onDragStart={handlers.onDragStart}
+                  timeZone={timeZone}
                 />
               ))}
               {items.length > 4 ? (
@@ -721,11 +873,13 @@ function TimeGrid({
   days,
   events,
   locale,
+  timeZone,
   ...handlers
 }: {
   days: Date[];
   events: DisplayEvent[];
   locale?: string;
+  timeZone: string;
 } & CalendarHandlers) {
   return (
     <div className="skycal__time-scroll">
@@ -738,7 +892,7 @@ function TimeGrid({
         <div className="skycal__time-corner" />
         {days.map((day) => (
           <div className="skycal__time-day" key={day.toISOString()}>
-            {formatWeekday(day, locale)} <strong>{day.getDate()}</strong>
+            {formatWeekday(day, locale)} <strong>{day.getUTCDate()}</strong>
           </div>
         ))}
         {HOURS.map((hour) => (
@@ -748,6 +902,7 @@ function TimeGrid({
             events={events}
             key={hour}
             handlers={handlers}
+            timeZone={timeZone}
           />
         ))}
       </div>
@@ -760,11 +915,13 @@ function TimeRow({
   days,
   events,
   handlers,
+  timeZone,
 }: {
   hour: number;
   days: Date[];
   events: DisplayEvent[];
   handlers: CalendarHandlers;
+  timeZone: string;
 }) {
   return (
     <>
@@ -772,7 +929,7 @@ function TimeRow({
       {days.map((day) => {
         const start = atHour(day, hour);
         const items = events.filter((item) =>
-          sameHour(new Date(item.start), start),
+          sameHour(wallDateFromInstant(new Date(item.start), timeZone), start),
         );
         return (
           <div
@@ -795,6 +952,7 @@ function TimeRow({
                 key={item.instanceKey}
                 onClick={handlers.onEventClick}
                 onDragStart={handlers.onDragStart}
+                timeZone={timeZone}
               />
             ))}
           </div>
@@ -808,23 +966,28 @@ function EventButton({
   item,
   onClick,
   onDragStart,
+  timeZone,
 }: {
   item: DisplayEvent;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
+  timeZone: string;
 }) {
   return (
     <button
       className="skycal__event"
       type="button"
-      draggable
+      draggable={!item.recurrenceRule}
       data-event-id={item.id}
+      data-instance-key={item.instanceKey}
       data-status={item.status}
       onClick={onClick}
       onDragStart={onDragStart}
     >
       <span>{item.title}</span>
-      <time dateTime={item.start}>{formatTime(new Date(item.start))}</time>
+      <time dateTime={item.start}>
+        {formatTime(new Date(item.start), timeZone)}
+      </time>
     </button>
   );
 }
@@ -832,10 +995,12 @@ function EventButton({
 function Agenda({
   events,
   locale,
+  timeZone,
   onEventClick,
 }: {
   events: DisplayEvent[];
   locale?: string;
+  timeZone: string;
   onEventClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const sorted = [...events].sort((a, b) => a.start.localeCompare(b.start));
@@ -852,9 +1017,15 @@ function Agenda({
               day: "numeric",
               hour: item.allDay ? undefined : "2-digit",
               minute: item.allDay ? undefined : "2-digit",
+              timeZone,
             }).format(new Date(item.start))}
           </time>
-          <button type="button" data-event-id={item.id} onClick={onEventClick}>
+          <button
+            type="button"
+            data-event-id={item.id}
+            data-instance-key={item.instanceKey}
+            onClick={onEventClick}
+          >
             <strong>{item.title}</strong>
             {item.location ? <span>{item.location}</span> : null}
           </button>
@@ -874,8 +1045,8 @@ function draftInput(draft: Draft, timeZone: string): ProductEventInput {
     title: draft.title.trim(),
     ...(draft.description ? { description: draft.description } : {}),
     ...(draft.location ? { location: draft.location } : {}),
-    start: new Date(draft.start).toISOString(),
-    end: new Date(draft.end).toISOString(),
+    start: instantFromLocalInput(draft.start, timeZone).toISOString(),
+    end: instantFromLocalInput(draft.end, timeZone).toISOString(),
     allDay: draft.allDay,
     timeZone,
     ...(draft.recurrenceRule ? { recurrenceRule: draft.recurrenceRule } : {}),
@@ -890,6 +1061,7 @@ function eventInput(
   item: ProductEvent,
   start: Date,
   end: Date,
+  recurrenceExceptions = item.recurrenceExceptions,
 ): ProductEventInput {
   return {
     title: item.title,
@@ -900,16 +1072,18 @@ function eventInput(
     allDay: item.allDay,
     timeZone: item.timeZone,
     ...(item.recurrenceRule ? { recurrenceRule: item.recurrenceRule } : {}),
-    recurrenceExceptions: item.recurrenceExceptions,
+    recurrenceExceptions,
     status: item.status,
     visibility: item.visibility,
     attendees: item.attendees,
   };
 }
 
-function visiblePeriod(cursor: Date, view: View) {
+function visibleWallPeriod(cursor: Date, view: View) {
   if (view === "month") {
-    const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    const first = new Date(
+      Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1),
+    );
     const from = startOfWeek(first);
     return { from, to: new Date(from.getTime() + 42 * DAY_MS) };
   }
@@ -924,8 +1098,16 @@ function visiblePeriod(cursor: Date, view: View) {
   };
 }
 
+function visiblePeriod(cursor: Date, view: View, timeZone: string) {
+  const wall = visibleWallPeriod(cursor, view);
+  return {
+    from: instantFromWallDate(wall.from, timeZone),
+    to: instantFromWallDate(wall.to, timeZone),
+  };
+}
+
 function viewDays(cursor: Date, view: View): Date[] {
-  const period = visiblePeriod(cursor, view);
+  const period = visibleWallPeriod(cursor, view);
   const count = view === "month" ? 42 : view === "week" ? 7 : 1;
   return Array.from(
     { length: count },
@@ -935,44 +1117,49 @@ function viewDays(cursor: Date, view: View): Date[] {
 
 function moveCursor(cursor: Date, view: View, direction: number): Date {
   const next = new Date(cursor);
-  if (view === "month") next.setMonth(next.getMonth() + direction);
+  if (view === "month") next.setUTCMonth(next.getUTCMonth() + direction);
   else
-    next.setDate(
-      next.getDate() +
+    next.setUTCDate(
+      next.getUTCDate() +
         direction * (view === "week" ? 7 : view === "agenda" ? 31 : 1),
     );
   return next;
 }
 
 function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
 }
 function startOfWeek(date: Date): Date {
   const result = startOfDay(date);
-  const offset = (result.getDay() + 6) % 7;
-  result.setDate(result.getDate() - offset);
+  const offset = (result.getUTCDay() + 6) % 7;
+  result.setUTCDate(result.getUTCDate() - offset);
   return result;
 }
 function atHour(day: Date, hour: number): Date {
-  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour);
+  return new Date(
+    Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), hour),
+  );
 }
 function sameHour(a: Date, b: Date): boolean {
   return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate() &&
-    a.getHours() === b.getHours()
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate() &&
+    a.getUTCHours() === b.getUTCHours()
   );
 }
-function dateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-function localInput(date: Date): string {
-  return `${dateKey(date)}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-function eventsForDay(events: DisplayEvent[], day: Date): DisplayEvent[] {
+function eventsForDay(
+  events: DisplayEvent[],
+  day: Date,
+  timeZone: string,
+): DisplayEvent[] {
   const key = dateKey(day);
-  return events.filter((item) => dateKey(new Date(item.start)) === key);
+  return events.filter(
+    (item) =>
+      dateKey(wallDateFromInstant(new Date(item.start), timeZone)) === key,
+  );
 }
 
 function expandRecurrences(
@@ -983,45 +1170,76 @@ function expandRecurrences(
   return events.flatMap((event) => {
     if (!event.recurrenceRule) return [{ ...event, instanceKey: event.id }];
     try {
+      const wallStart = wallDateFromInstant(
+        new Date(event.start),
+        event.timeZone,
+      );
+      const wallEnd = wallDateFromInstant(new Date(event.end), event.timeZone);
+      const wallFrom = wallDateFromInstant(from, event.timeZone);
+      const wallTo = wallDateFromInstant(to, event.timeZone);
       const rule = rrulestr(event.recurrenceRule.replace(/^RRULE:/, ""), {
-        dtstart: new Date(event.start),
+        dtstart: wallStart,
       });
-      const duration = Date.parse(event.end) - Date.parse(event.start);
+      const wallDuration = wallEnd.getTime() - wallStart.getTime();
       const exceptions = new Set(event.recurrenceExceptions);
       return rule
-        .between(from, to, true)
+        .between(wallFrom, wallTo, true)
         .slice(0, 1_000)
-        .filter((start) => !exceptions.has(start.toISOString()))
-        .map((start) => ({
-          ...event,
-          start: start.toISOString(),
-          end: new Date(start.getTime() + duration).toISOString(),
-          instanceKey: `${event.id}:${start.toISOString()}`,
-        }));
+        .map((wallOccurrence) => {
+          const start = instantFromWallDate(wallOccurrence, event.timeZone);
+          const end = instantFromWallDate(
+            new Date(wallOccurrence.getTime() + wallDuration),
+            event.timeZone,
+          );
+          return {
+            ...event,
+            start: start.toISOString(),
+            end: end.toISOString(),
+            instanceKey: `${event.id}:${start.toISOString()}`,
+          };
+        })
+        .filter((occurrence) => !exceptions.has(occurrence.start));
     } catch {
       return [{ ...event, instanceKey: event.id }];
     }
   });
 }
 function weekdays(locale?: string): string[] {
-  const monday = new Date(2024, 0, 1);
+  const monday = new Date(Date.UTC(2024, 0, 1));
   return Array.from({ length: 7 }, (_, index) =>
     formatWeekday(new Date(monday.getTime() + index * DAY_MS), locale),
   );
 }
 function formatWeekday(date: Date, locale?: string): string {
-  return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date);
+  return new Intl.DateTimeFormat(locale, {
+    weekday: "short",
+    timeZone: "UTC",
+  }).format(date);
 }
 function formatDay(date: Date, locale?: string): string {
-  return new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(date);
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "long",
+    timeZone: "UTC",
+  }).format(date);
 }
-function formatTime(date: Date): string {
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+function formatTime(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone,
+  }).format(date);
 }
-function periodTitle(date: Date, view: View, locale?: string): string {
+function periodTitle(
+  date: Date,
+  view: View,
+  locale: string | undefined,
+): string {
   return new Intl.DateTimeFormat(
     locale,
-    view === "day" ? { dateStyle: "long" } : { month: "long", year: "numeric" },
+    view === "day"
+      ? { dateStyle: "long", timeZone: "UTC" }
+      : { month: "long", year: "numeric", timeZone: "UTC" },
   ).format(date);
 }
 function capitalize(value: string): string {
@@ -1034,4 +1252,29 @@ function validAttendees(value: string): boolean {
     .map((email) => email.trim())
     .filter(Boolean);
   return emails.every((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+}
+
+function moveSeriesInput(
+  master: ProductEvent,
+  edited: ProductEventInput,
+  occurrenceStart: string,
+): ProductEventInput {
+  const offset = Date.parse(edited.start) - Date.parse(occurrenceStart);
+  const start = new Date(Date.parse(master.start) + offset);
+  const duration = Date.parse(edited.end) - Date.parse(edited.start);
+  return {
+    ...edited,
+    start: start.toISOString(),
+    end: new Date(start.getTime() + duration).toISOString(),
+    recurrenceExceptions: master.recurrenceExceptions,
+  };
+}
+
+function downloadFile(contents: string, type: string, name: string): void {
+  const url = URL.createObjectURL(new Blob([contents], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
 }
