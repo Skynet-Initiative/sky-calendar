@@ -15,6 +15,7 @@ e2e/__screenshots__/**/*-actual.png
 # Environment / editor
 .env
 .env.*
+!.env.example
 .DS_Store
 *.log
 .idea/

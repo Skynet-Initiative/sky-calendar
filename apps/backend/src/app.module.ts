@@ -7,6 +7,7 @@ import { CalendarController } from "./calendar/calendar.controller.js";
 import { CalendarService } from "./calendar/calendar.service.js";
 import { validateEnv } from "./config/env.schema.js";
 import { HealthController } from "./health.controller.js";
+import { ControlController } from "./control.controller.js";
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { HealthController } from "./health.controller.js";
     }),
     ThrottlerModule.forRoot([{ limit: 120, ttl: 60_000 }]),
   ],
-  controllers: [HealthController, CalendarController],
+  controllers: [HealthController, CalendarController, ControlController],
   providers: [
     CalendarService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },

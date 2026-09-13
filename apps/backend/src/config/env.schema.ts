@@ -13,6 +13,7 @@ const schema = z.object({
     .refine((value) => value.split(",").every((key) => key.trim().length > 0)),
   PLATFORM_TOKEN_AUDIENCE: z.string().min(1).default("sky-calendar"),
   CORS_ORIGIN: z.string().min(1),
+  CONTROL_PLANE_TOKEN: z.string().min(32).max(4_096).optional(),
 });
 
 export type Environment = z.infer<typeof schema>;

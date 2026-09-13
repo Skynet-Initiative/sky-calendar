@@ -102,6 +102,12 @@ export class CalendarService implements OnModuleDestroy {
     if (result.rowCount === 0) throw new NotFoundException("Event not found");
   }
 
+  async deleteWorkspace(workspaceId: string): Promise<void> {
+    await this.pool.query("DELETE FROM calendar WHERE workspace_id = $1", [
+      workspaceId,
+    ]);
+  }
+
   private async writeEvent(
     kind: "insert" | "update",
     id: string,
