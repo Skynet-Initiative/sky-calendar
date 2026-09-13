@@ -1,6 +1,6 @@
-import type { CalendarEvent } from '../model/calendar-event';
-import type { ZonedDateTime } from '../date-adapter/zoned-date-time';
-import type { ViewPeriod } from './view-period';
+import type { CalendarEvent } from "../model/calendar-event";
+import type { ZonedDateTime } from "../date-adapter/zoned-date-time";
+import type { ViewPeriod } from "./view-period";
 
 /** One day's worth of events in the agenda list. */
 export interface AgendaDay<TMeta = unknown> {

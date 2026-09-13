@@ -1,4 +1,4 @@
-import { overlaps, type Interval } from './interval';
+import { overlaps, type Interval } from "./interval";
 
 /** An interval assigned to a vertical column within its overlap cluster. */
 export interface ColumnPlacement<T> {
@@ -39,8 +39,13 @@ interface Indexed<T> {
  * Pure; preserves input order; never mutates inputs. Geometry is fraction-based
  * (DOM-unit-free) so it composes with signals / OnPush without layout reads.
  */
-export function packColumns<T>(intervals: readonly Interval<T>[]): ColumnPacking<T> {
-  const indexed: Indexed<T>[] = intervals.map((interval, index) => ({ interval, index }));
+export function packColumns<T>(
+  intervals: readonly Interval<T>[],
+): ColumnPacking<T> {
+  const indexed: Indexed<T>[] = intervals.map((interval, index) => ({
+    interval,
+    index,
+  }));
   const byStart = [...indexed].sort((a, b) =>
     a.interval.start !== b.interval.start
       ? a.interval.start - b.interval.start

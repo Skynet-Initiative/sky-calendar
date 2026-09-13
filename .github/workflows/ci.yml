@@ -1,30 +1,43 @@
 name: CI
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build-test:
-    name: React 19
+  quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: sky_calendar
+          POSTGRES_PASSWORD: test-only
+          POSTGRES_USER: sky_calendar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sky_calendar -d sky_calendar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://sky_calendar:test-only@127.0.0.1:5432/sky_calendar
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build -w @ascentsparksoftware/react-calendar
-      - run: node scripts/check-bundle-size.mjs
-      # Date/adapter specs must hold in UTC and across a DST-observing zone.
-      - run: TZ=UTC npm test
-      - run: TZ=America/New_York npm test
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run build -w demo
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun audit
+      - run: bun run format:check
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run db:migrate && bun run db:migrate
+      - run: TZ=UTC bun run test
+      - run: TZ=America/New_York bun run test
+      - run: bun run build

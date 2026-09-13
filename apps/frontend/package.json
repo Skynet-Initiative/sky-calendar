@@ -1,0 +1,26 @@
+{
+  "name": "@sky-calendar/frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --turbopack -p 3010",
+    "build": "next build",
+    "start": "PORT=3010 HOSTNAME=0.0.0.0 bun .next/standalone/apps/frontend/server.js",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@skynet-initiative/sky-calendar": "workspace:*",
+    "next": "16.3.5",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.1",
+    "@types/react": "19.2.16",
+    "@types/react-dom": "19.2.3",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
+  }
+}

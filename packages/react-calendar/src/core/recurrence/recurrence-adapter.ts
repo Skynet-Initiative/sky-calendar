@@ -1,13 +1,13 @@
-import type { ZonedDateTime } from '../date-adapter/zoned-date-time';
+import type { ZonedDateTime } from "../date-adapter/zoned-date-time";
 
 /** Recurrence frequency (RFC 5545 FREQ). */
-export type RecurrenceFreq = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type RecurrenceFreq = "daily" | "weekly" | "monthly" | "yearly";
 
 /** How a recurrence-end is expressed. */
 export type RecurrenceEnd =
-  | { readonly type: 'never' }
-  | { readonly type: 'count'; readonly count: number }
-  | { readonly type: 'until'; readonly until: ZonedDateTime };
+  | { readonly type: "never" }
+  | { readonly type: "count"; readonly count: number }
+  | { readonly type: "until"; readonly until: ZonedDateTime };
 
 /** Parsed, editor-friendly representation of an RRULE. */
 export interface RecurrenceParts {
@@ -26,7 +26,7 @@ export interface RecurrenceParts {
 }
 
 /** Which occurrences a recurrence edit applies to. */
-export type RecurrenceEditScope = 'this' | 'this-and-following' | 'all';
+export type RecurrenceEditScope = "this" | "this-and-following" | "all";
 
 /**
  * Pluggable recurrence engine. The default implementation (RFC 5545 via `rrule`)

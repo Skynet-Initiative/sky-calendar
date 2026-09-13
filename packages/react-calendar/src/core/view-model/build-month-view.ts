@@ -1,11 +1,16 @@
-import type { DateAdapter } from '../date-adapter/date-adapter';
-import type { ZonedDateTime } from '../date-adapter/zoned-date-time';
-import type { CalendarEvent } from '../model/calendar-event';
-import { packRows } from '../layout/pack-rows';
-import type { Interval } from '../layout/interval';
-import type { MonthDay, MonthViewArgs, MonthViewModel, MonthWeek } from './month-view-model';
-import type { PositionedChip } from './positioned-chip';
-import type { ViewPeriod } from './view-period';
+import type { DateAdapter } from "../date-adapter/date-adapter";
+import type { ZonedDateTime } from "../date-adapter/zoned-date-time";
+import type { CalendarEvent } from "../model/calendar-event";
+import { packRows } from "../layout/pack-rows";
+import type { Interval } from "../layout/interval";
+import type {
+  MonthDay,
+  MonthViewArgs,
+  MonthViewModel,
+  MonthWeek,
+} from "./month-view-model";
+import type { PositionedChip } from "./positioned-chip";
+import type { ViewPeriod } from "./view-period";
 
 const DAYS_PER_WEEK = 7;
 const DEFAULT_WEEKEND: readonly number[] = [0, 6];
@@ -52,7 +57,9 @@ export function buildMonthView<TMeta = unknown>(
   const maxLanes = args.maxLanes ?? Number.POSITIVE_INFINITY;
 
   const monthStart = adapter.startOfMonth(args.viewDate);
-  const nextMonthStart = adapter.startOfMonth(adapter.addMonths(args.viewDate, 1));
+  const nextMonthStart = adapter.startOfMonth(
+    adapter.addMonths(args.viewDate, 1),
+  );
   const monthLastDay = adapter.startOfDay(adapter.addDays(nextMonthStart, -1));
   const gridStart = adapter.startOfWeek(monthStart, args.weekStartsOn);
 
@@ -60,19 +67,28 @@ export function buildMonthView<TMeta = unknown>(
   const ranges = args.events.map((event) => {
     const start = resolve(adapter, event.start, zone);
     const startDay = adapter.startOfDay(start);
-    const end = event.end === undefined ? start : resolve(adapter, event.end, zone);
+    const end =
+      event.end === undefined ? start : resolve(adapter, event.end, zone);
     // Half-open: an event ending exactly at midnight does not cover that day.
     const lastInstant =
-      adapter.differenceInMinutes(end, start) > 0 ? adapter.addMinutes(end, -1) : start;
+      adapter.differenceInMinutes(end, start) > 0
+        ? adapter.addMinutes(end, -1)
+        : start;
     const lastDay = adapter.startOfDay(lastInstant);
-    return { event, startDayEpoch: startDay.epochMs, lastDayEpoch: lastDay.epochMs };
+    return {
+      event,
+      startDayEpoch: startDay.epochMs,
+      lastDayEpoch: lastDay.epochMs,
+    };
   });
 
   const weeks: MonthWeek<TMeta>[] = [];
   let weekIndex = 0;
 
   while (true) {
-    const weekStart = adapter.startOfDay(adapter.addDays(gridStart, weekIndex * DAYS_PER_WEEK));
+    const weekStart = adapter.startOfDay(
+      adapter.addDays(gridStart, weekIndex * DAYS_PER_WEEK),
+    );
     if (weekStart.epochMs > monthLastDay.epochMs) {
       break;
     }
@@ -134,17 +150,23 @@ export function buildMonthView<TMeta = unknown>(
         .filter((c) => c.startColumn === column && c.lane < maxLanes)
         .sort((a, b) => a.lane - b.lane);
       const overflowCount = chips.filter(
-        (c) => c.startColumn <= column && column < c.startColumn + c.span && c.lane >= maxLanes,
+        (c) =>
+          c.startColumn <= column &&
+          column < c.startColumn + c.span &&
+          c.lane >= maxLanes,
       ).length;
       const dayEpoch = dayEpochs[column] ?? date.epochMs;
       const dayEvents = ranges
-        .filter((r) => r.startDayEpoch <= dayEpoch && dayEpoch <= r.lastDayEpoch)
+        .filter(
+          (r) => r.startDayEpoch <= dayEpoch && dayEpoch <= r.lastDayEpoch,
+        )
         .map((r) => r.event)
         .sort((a, b) => epochOf(a.start) - epochOf(b.start));
       return {
         date,
         inMonth: adapter.startOfMonth(date).epochMs === monthStart.epochMs,
-        isToday: args.today !== undefined && adapter.isSameDay(date, args.today),
+        isToday:
+          args.today !== undefined && adapter.isSameDay(date, args.today),
         isWeekend: weekendDays.includes(adapter.getDayOfWeek(date)),
         events: anchored,
         overflowCount,

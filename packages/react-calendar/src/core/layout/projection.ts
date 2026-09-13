@@ -31,7 +31,11 @@ export function offsetFraction(value: number, range: ProjectionRange): number {
 }
 
 /** Fraction (0–1) length of the span `[from, to)` along the range. */
-export function sizeFraction(from: number, to: number, range: ProjectionRange): number {
+export function sizeFraction(
+  from: number,
+  to: number,
+  range: ProjectionRange,
+): number {
   return range.total > 0 ? (to - from) / range.total : 0;
 }
 

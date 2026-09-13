@@ -8,15 +8,21 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
-} from 'react';
-import { resolveTimeFormat } from '../../core/config/calendar-config';
-import type { CalendarSystem, ZonedDateTime } from '../../core/date-adapter/zoned-date-time';
-import type { CalendarEvent } from '../../core/model/calendar-event';
-import { buildMonthView } from '../../core/view-model/build-month-view';
-import type { MonthDay, MonthWeek } from '../../core/view-model/month-view-model';
-import type { PositionedChip } from '../../core/view-model/positioned-chip';
-import { useCalendar, useDateAdapter } from '../../provider/calendar-context';
-import type { CalThemeMode } from '../../theme/derive-theme';
+} from "react";
+import { resolveTimeFormat } from "../../core/config/calendar-config";
+import type {
+  CalendarSystem,
+  ZonedDateTime,
+} from "../../core/date-adapter/zoned-date-time";
+import type { CalendarEvent } from "../../core/model/calendar-event";
+import { buildMonthView } from "../../core/view-model/build-month-view";
+import type {
+  MonthDay,
+  MonthWeek,
+} from "../../core/view-model/month-view-model";
+import type { PositionedChip } from "../../core/view-model/positioned-chip";
+import { useCalendar, useDateAdapter } from "../../provider/calendar-context";
+import type { CalThemeMode } from "../../theme/derive-theme";
 import {
   eventColors,
   eventDotColor,
@@ -25,8 +31,8 @@ import {
   isRtl,
   useHostTheme,
   useViewPeriodChanged,
-} from '../internal/host';
-import type { RenderCell, RenderEvent, RenderOverflow } from '../types';
+} from "../internal/host";
+import type { RenderCell, RenderEvent, RenderOverflow } from "../types";
 
 /** Props for {@link CalMonthView}. Names/semantics mirror the Angular inputs/outputs. */
 export interface CalMonthViewProps<TMeta = unknown> {
@@ -71,7 +77,9 @@ export interface CalMonthViewProps<TMeta = unknown> {
  * chips, status colours, and "+N more" overflow. All date math is delegated to
  * the provider's {@link DateAdapter}; the component holds no layout logic.
  */
-export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): ReactNode {
+export function CalMonthView<TMeta = unknown>(
+  props: CalMonthViewProps<TMeta>,
+): ReactNode {
   const adapter = useDateAdapter();
   const { config, recurrenceAdapter, a11y, intl } = useCalendar();
   const host = useRef<HTMLDivElement>(null);
@@ -106,7 +114,9 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
     const baseArgs = {
       viewDate: anchor,
       weekStartsOn: resolvedWeekStart,
-      ...(today !== null ? { today: adapter.toZoned(today, resolvedZone) } : {}),
+      ...(today !== null
+        ? { today: adapter.toZoned(today, resolvedZone) }
+        : {}),
       ...(maxLanes !== null ? { maxLanes } : {}),
       ...(weekendDays !== null ? { weekendDays } : {}),
     };
@@ -145,11 +155,17 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
   const [focusedEpoch, setFocusedEpoch] = useState<number | null>(null);
 
   /** Flattened day cells in reading order (for keyboard navigation). */
-  const flatDays = useMemo(() => viewModel.weeks.flatMap((w) => w.days), [viewModel]);
+  const flatDays = useMemo(
+    () => viewModel.weeks.flatMap((w) => w.days),
+    [viewModel],
+  );
 
   /** The effective roving-focus target: explicit focus, else today, else first in-month. */
   const effectiveFocus = useMemo(() => {
-    if (focusedEpoch !== null && flatDays.some((d) => d.date.epochMs === focusedEpoch)) {
+    if (
+      focusedEpoch !== null &&
+      flatDays.some((d) => d.date.epochMs === focusedEpoch)
+    ) {
       return focusedEpoch;
     }
     const todayDay = flatDays.find((d) => d.isToday);
@@ -167,14 +183,17 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
       return [];
     }
     return week.days.map((day) => ({
-      short: adapter.format(day.date, 'EEE', resolvedLocale, resolvedSystem),
-      narrow: adapter.format(day.date, 'EEEEE', resolvedLocale, resolvedSystem),
+      short: adapter.format(day.date, "EEE", resolvedLocale, resolvedSystem),
+      narrow: adapter.format(day.date, "EEEEE", resolvedLocale, resolvedSystem),
     }));
   }, [adapter, viewModel, resolvedLocale, resolvedSystem]);
 
   // ── "+N more" overflow popover ─────────────────────────────────────────────
   const [openMoreEpoch, setOpenMoreEpoch] = useState<number | null>(null);
-  const [morePlacement, setMorePlacement] = useState({ flipX: false, flipY: false });
+  const [morePlacement, setMorePlacement] = useState({
+    flipX: false,
+    flipY: false,
+  });
   const morePanel = useRef<HTMLDivElement>(null);
   const moreTrigger = useRef<HTMLElement | null>(null);
 
@@ -202,25 +221,31 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
   );
 
   /** Open the overflow popover for a day, listing every event covering it. */
-  const openMore = useCallback((day: MonthDay<TMeta>, dom: MouseEvent): void => {
-    dom.stopPropagation();
-    moreTrigger.current = dom.currentTarget as HTMLElement;
-    setMorePlacement({ flipX: false, flipY: false });
-    setOpenMoreEpoch(day.date.epochMs);
-    // Measure once the popover has laid out, then flip it in-bounds if needed.
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => {
-        const panel = morePanel.current;
-        const hostEl = host.current;
-        if (!panel || !hostEl) {
-          return;
-        }
-        const p = panel.getBoundingClientRect();
-        const h = hostEl.getBoundingClientRect();
-        setMorePlacement({ flipX: p.right > h.right + 1, flipY: p.bottom > h.bottom + 1 });
-      });
-    }
-  }, []);
+  const openMore = useCallback(
+    (day: MonthDay<TMeta>, dom: MouseEvent): void => {
+      dom.stopPropagation();
+      moreTrigger.current = dom.currentTarget as HTMLElement;
+      setMorePlacement({ flipX: false, flipY: false });
+      setOpenMoreEpoch(day.date.epochMs);
+      // Measure once the popover has laid out, then flip it in-bounds if needed.
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => {
+          const panel = morePanel.current;
+          const hostEl = host.current;
+          if (!panel || !hostEl) {
+            return;
+          }
+          const p = panel.getBoundingClientRect();
+          const h = hostEl.getBoundingClientRect();
+          setMorePlacement({
+            flipX: p.right > h.right + 1,
+            flipY: p.bottom > h.bottom + 1,
+          });
+        });
+      }
+    },
+    [],
+  );
 
   const closeMore = useCallback((): void => {
     setOpenMoreEpoch((open) => {
@@ -235,7 +260,9 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
 
   /** Roving-tabindex keyboard navigation over the day grid (RTL-aware). */
   const onGridKeydown = (dom: KeyboardEvent): void => {
-    const current = flatDays.findIndex((d) => d.date.epochMs === effectiveFocus);
+    const current = flatDays.findIndex(
+      (d) => d.date.epochMs === effectiveFocus,
+    );
     if (current === -1) {
       return;
     }
@@ -245,26 +272,26 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
     let select = false;
 
     switch (dom.key) {
-      case 'ArrowRight':
+      case "ArrowRight":
         target = current + (rtl ? -1 : 1);
         break;
-      case 'ArrowLeft':
+      case "ArrowLeft":
         target = current + (rtl ? 1 : -1);
         break;
-      case 'ArrowDown':
+      case "ArrowDown":
         target = current + 7;
         break;
-      case 'ArrowUp':
+      case "ArrowUp":
         target = current - 7;
         break;
-      case 'Home':
+      case "Home":
         target = current - col;
         break;
-      case 'End':
+      case "End":
         target = current + (6 - col);
         break;
-      case 'Enter':
-      case ' ':
+      case "Enter":
+      case " ":
         select = true;
         break;
       default:
@@ -300,7 +327,7 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
     const { bg, fg } = eventColors(chip.event.status);
     return {
       top: `calc(var(--cal-day-head) + ${chip.lane} * var(--cal-chip-row))`,
-      left: '1px',
+      left: "1px",
       width: `calc(${chip.span} * 100% - 2px)`,
       background: bg,
       color: fg,
@@ -309,7 +336,10 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
 
   /** `top` for the "+N more" pill: the row immediately below the day's last visible chip. */
   const moreTop = (day: MonthDay<TMeta>): string => {
-    const lastLane = day.events.reduce((max, chip) => Math.max(max, chip.lane), -1);
+    const lastLane = day.events.reduce(
+      (max, chip) => Math.max(max, chip.lane),
+      -1,
+    );
     return `calc(var(--cal-day-head) + ${lastLane + 1} * var(--cal-chip-row))`;
   };
 
@@ -343,11 +373,19 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
   };
 
   return (
-    <div ref={host} className={`cal-month-view${className ? ` ${className}` : ''}`}>
+    <div
+      ref={host}
+      className={`cal-month-view${className ? ` ${className}` : ""}`}
+    >
       {/* Roving-tabindex grid: cells are the focus targets; arrow/Home/End/Enter are
           handled centrally here (APG grid pattern), so the container itself is
           intentionally not a tab stop. */}
-      <div className="cal-month" role="grid" aria-label="Month view" onKeyDown={onGridKeydown}>
+      <div
+        className="cal-month"
+        role="grid"
+        aria-label="Month view"
+        onKeyDown={onGridKeydown}
+      >
         <div className="cal-month__weekdays" role="row">
           {weekdayLabels.map((wd, i) => (
             <div key={i} className="cal-month__weekday" role="columnheader">
@@ -361,20 +399,20 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
             key={wi}
             className="cal-month__week"
             role="row"
-            style={{ '--cal-week-lanes': weekLanes(week) } as CSSProperties}
+            style={{ "--cal-week-lanes": weekLanes(week) } as CSSProperties}
           >
             {week.days.map((day, col) => {
               const selected = selectedEpoch === day.date.epochMs;
               const moreOpen = openMoreEpoch === day.date.epochMs;
               const dayClasses = [
-                'cal-day',
-                !day.inMonth ? 'cal-day--out' : '',
-                day.isToday ? 'cal-day--today' : '',
-                day.isWeekend ? 'cal-day--weekend' : '',
-                selected ? 'cal-day--selected' : '',
+                "cal-day",
+                !day.inMonth ? "cal-day--out" : "",
+                day.isToday ? "cal-day--today" : "",
+                day.isWeekend ? "cal-day--weekend" : "",
+                selected ? "cal-day--selected" : "",
               ]
                 .filter(Boolean)
-                .join(' ');
+                .join(" ");
               return (
                 <div
                   key={day.date.epochMs}
@@ -393,7 +431,12 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
                     <>
                       <div className="cal-day__head">
                         <span className="cal-day__num" aria-hidden="true">
-                          {adapter.format(day.date, 'd', resolvedLocale, resolvedSystem)}
+                          {adapter.format(
+                            day.date,
+                            "d",
+                            resolvedLocale,
+                            resolvedSystem,
+                          )}
                         </span>
                       </div>
 
@@ -402,13 +445,17 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
                           key={`${chip.event.id}:${chip.startColumn}`}
                           type="button"
                           className={[
-                            'cal-chip',
-                            chip.continuesBefore ? 'cal-chip--continues-before' : '',
-                            chip.continuesAfter ? 'cal-chip--continues-after' : '',
-                            chip.event.cssClass ?? '',
+                            "cal-chip",
+                            chip.continuesBefore
+                              ? "cal-chip--continues-before"
+                              : "",
+                            chip.continuesAfter
+                              ? "cal-chip--continues-after"
+                              : "",
+                            chip.event.cssClass ?? "",
                           ]
                             .filter(Boolean)
-                            .join(' ')}
+                            .join(" ")}
                           style={chipStyle(chip)}
                           aria-label={a11y.eventLabel(chip.event)}
                           onClick={(e) => onEventClick(chip.event, e)}
@@ -416,7 +463,9 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
                           {renderEvent !== undefined ? (
                             renderEvent(chip.event, chip)
                           ) : (
-                            <span className="cal-chip__title">{chip.event.title}</span>
+                            <span className="cal-chip__title">
+                              {chip.event.title}
+                            </span>
                           )}
                         </button>
                       ))}
@@ -450,18 +499,18 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
                           <div
                             ref={morePanel}
                             className={[
-                              'cal-more',
-                              morePlacement.flipX ? 'cal-more--flip-x' : '',
-                              morePlacement.flipY ? 'cal-more--flip-y' : '',
+                              "cal-more",
+                              morePlacement.flipX ? "cal-more--flip-x" : "",
+                              morePlacement.flipY ? "cal-more--flip-y" : "",
                             ]
                               .filter(Boolean)
-                              .join(' ')}
+                              .join(" ")}
                             role="dialog"
                             aria-modal="true"
                             tabIndex={-1}
                             aria-label={a11y.dayLabel(day.date)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Escape') {
+                              if (e.key === "Escape") {
                                 closeMore();
                                 e.stopPropagation();
                               }
@@ -470,7 +519,12 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
                           >
                             <div className="cal-more__head">
                               <span className="cal-more__date">
-                                {adapter.format(day.date, 'EEE d', resolvedLocale, resolvedSystem)}
+                                {adapter.format(
+                                  day.date,
+                                  "EEE d",
+                                  resolvedLocale,
+                                  resolvedSystem,
+                                )}
                               </span>
                               <button
                                 type="button"
@@ -494,10 +548,16 @@ export function CalMonthView<TMeta = unknown>(props: CalMonthViewProps<TMeta>): 
                                   >
                                     <span
                                       className="cal-more__dot"
-                                      style={{ background: eventDotColor(event.status) }}
+                                      style={{
+                                        background: eventDotColor(event.status),
+                                      }}
                                     ></span>
-                                    <span className="cal-more__time">{morePopoverTime(event)}</span>
-                                    <span className="cal-more__title">{event.title}</span>
+                                    <span className="cal-more__time">
+                                      {morePopoverTime(event)}
+                                    </span>
+                                    <span className="cal-more__title">
+                                      {event.title}
+                                    </span>
                                   </button>
                                 </li>
                               ))}

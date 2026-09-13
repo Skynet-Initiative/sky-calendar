@@ -10,19 +10,31 @@ import {
   type PointerEvent,
   type ReactNode,
   type UIEvent,
-} from 'react';
-import { resolveTimeFormat } from '../../core/config/calendar-config';
-import type { CalendarSystem, ZonedDateTime } from '../../core/date-adapter/zoned-date-time';
-import type { TimeAxisOrientation } from '../../core/model/view';
-import type { CalendarEvent } from '../../core/model/calendar-event';
-import type { CalendarResource } from '../../core/model/calendar-resource';
-import { buildTimelineView } from '../../core/view-model/build-timeline-view';
-import { computeRowWindow, type VirtualWindow } from '../../core/layout/virtual-window';
-import type { TimeHeaderUnit, ResourceRow } from '../../core/view-model/timeline-view-model';
-import type { PositionedEvent, ShadeBand } from '../../core/view-model/positioned-event';
-import type { EventChange } from '../../interactions/event-change';
-import type { CalThemeMode } from '../../theme/derive-theme';
-import { useCalendar, useDateAdapter } from '../../provider/calendar-context';
+} from "react";
+import { resolveTimeFormat } from "../../core/config/calendar-config";
+import type {
+  CalendarSystem,
+  ZonedDateTime,
+} from "../../core/date-adapter/zoned-date-time";
+import type { TimeAxisOrientation } from "../../core/model/view";
+import type { CalendarEvent } from "../../core/model/calendar-event";
+import type { CalendarResource } from "../../core/model/calendar-resource";
+import { buildTimelineView } from "../../core/view-model/build-timeline-view";
+import {
+  computeRowWindow,
+  type VirtualWindow,
+} from "../../core/layout/virtual-window";
+import type {
+  TimeHeaderUnit,
+  ResourceRow,
+} from "../../core/view-model/timeline-view-model";
+import type {
+  PositionedEvent,
+  ShadeBand,
+} from "../../core/view-model/positioned-event";
+import type { EventChange } from "../../interactions/event-change";
+import type { CalThemeMode } from "../../theme/derive-theme";
+import { useCalendar, useDateAdapter } from "../../provider/calendar-context";
 import {
   eventColors,
   expandForWindow,
@@ -30,8 +42,8 @@ import {
   isRtl,
   useHostTheme,
   useViewPeriodChanged,
-} from '../internal/host';
-import type { RenderEvent, RenderResourceHeader } from '../types';
+} from "../internal/host";
+import type { RenderEvent, RenderResourceHeader } from "../types";
 
 /** Movement past this many px before a press is treated as a drag (not a click). */
 const DRAG_THRESHOLD_PX = 4;
@@ -39,7 +51,7 @@ const DRAG_THRESHOLD_PX = 4;
 /** In-flight gesture moving/resizing a timeline block along time / across lanes. */
 interface TimelineDrag {
   readonly eventId: string;
-  readonly kind: 'move' | 'resize-start' | 'resize-end';
+  readonly kind: "move" | "resize-start" | "resize-end";
   readonly originStartMs: number;
   readonly originEndMs: number;
   readonly originResourceId: string;
@@ -65,7 +77,7 @@ interface CreateDrag {
 /** Sentinel pointerId marking a keyboard-driven grab (vs a real pointer). */
 const KEYBOARD_POINTER = -1;
 
-const DEFAULT_HEADER_GROUPINGS: readonly TimeHeaderUnit[] = ['day', 'hour'];
+const DEFAULT_HEADER_GROUPINGS: readonly TimeHeaderUnit[] = ["day", "hour"];
 
 /** Absolute epoch ms of a `Date | ZonedDateTime`. */
 function epochOf(value: Date | ZonedDateTime): number {
@@ -124,7 +136,10 @@ export interface CalTimelineViewProps<TMeta = unknown> {
   }) => void;
   /** Fired when a block is dragged to a new time and/or resource lane. */
   readonly eventChanged?: (change: EventChange<TMeta>) => void;
-  readonly slotSelected?: (payload: { date: ZonedDateTime; resourceId: string }) => void;
+  readonly slotSelected?: (payload: {
+    date: ZonedDateTime;
+    resourceId: string;
+  }) => void;
   readonly resourceToggled?: (payload: {
     resource: CalendarResource<TMeta>;
     expanded: boolean;
@@ -154,9 +169,12 @@ export interface CalTimelineViewProps<TMeta = unknown> {
  * a live now-line, and expand/collapse of the resource tree. Theme-agnostic
  * `--cal-*`; all date math delegated to the adapter.
  */
-export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMeta>): ReactNode {
+export function CalTimelineView<TMeta = unknown>(
+  props: CalTimelineViewProps<TMeta>,
+): ReactNode {
   const adapter = useDateAdapter();
-  const { config, recurrenceAdapter, virtualization, a11y, intl } = useCalendar();
+  const { config, recurrenceAdapter, virtualization, a11y, intl } =
+    useCalendar();
   const host = useRef<HTMLDivElement>(null);
   useHostTheme(host, props);
 
@@ -168,7 +186,7 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     dayStartMinutes = null,
     dayEndMinutes = null,
     headerGroupings = DEFAULT_HEADER_GROUPINGS,
-    orientation = 'horizontal',
+    orientation = "horizontal",
     today = null,
     now = null,
     weekStartsOn = null,
@@ -194,14 +212,18 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
   const resolvedZone = timezone ?? config.timezone ?? hostZone();
 
   /** Local collapse overrides (id → collapsed), so the board is self-contained. */
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
   /** Resources with local collapse applied (expanded:false for collapsed ids). */
   const effectiveResources = useMemo<readonly CalendarResource<TMeta>[]>(() => {
     if (collapsed.size === 0) {
       return resources;
     }
-    return resources.map((r) => (collapsed.has(r.id) ? { ...r, expanded: false } : r));
+    return resources.map((r) =>
+      collapsed.has(r.id) ? { ...r, expanded: false } : r,
+    );
   }, [collapsed, resources]);
 
   const viewModel = useMemo(() => {
@@ -217,12 +239,17 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
       locale: resolvedLocale,
       hour12: config.hour12,
       ...(now !== null ? { now: adapter.toZoned(now, resolvedZone) } : {}),
-      ...(today !== null ? { today: adapter.toZoned(today, resolvedZone) } : {}),
+      ...(today !== null
+        ? { today: adapter.toZoned(today, resolvedZone) }
+        : {}),
     };
     // Expand recurring events against the timeline window when an engine is present
     // (probe the period with an empty event set — events don't affect the period).
     let expanded = events;
-    if (recurrenceAdapter !== null && events.some((e) => e.recurrenceRule !== undefined)) {
+    if (
+      recurrenceAdapter !== null &&
+      events.some((e) => e.recurrenceRule !== undefined)
+    ) {
       const probe = buildTimelineView<TMeta>(adapter, { ...args, events: [] });
       expanded = expandForWindow(
         events,
@@ -257,12 +284,16 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
 
   /** Total hours along the axis (for the time-area extent). */
   const totalHours = useMemo(
-    () => adapter.differenceInMinutes(viewModel.period.end, viewModel.period.start) / 60,
+    () =>
+      adapter.differenceInMinutes(
+        viewModel.period.end,
+        viewModel.period.start,
+      ) / 60,
     [adapter, viewModel],
   );
 
   /** True when the time axis runs vertically (resources are columns). */
-  const vertical = orientation === 'vertical';
+  const vertical = orientation === "vertical";
 
   /** The pointer coordinate along the time axis (X for horizontal, Y for vertical). */
   const axisClient = (dom: { clientX: number; clientY: number }): number =>
@@ -302,8 +333,20 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
       return { start: 0, end: rows.length, padTop: 0, padBottom: 0 };
     }
     const heights = rows.map((r) => r.laneCount * laneHeight);
-    return computeRowWindow(heights, scrollTop, viewportHeight, virtualization.overscanPx);
-  }, [viewModel, vertical, virtualization, laneHeight, scrollTop, viewportHeight]);
+    return computeRowWindow(
+      heights,
+      scrollTop,
+      viewportHeight,
+      virtualization.overscanPx,
+    );
+  }, [
+    viewModel,
+    vertical,
+    virtualization,
+    laneHeight,
+    scrollTop,
+    viewportHeight,
+  ]);
 
   /** The resource rows currently in (or near) the viewport. */
   const visibleRows = useMemo(
@@ -316,7 +359,9 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
    * month timeline doesn't render thousands of off-screen event nodes. Falls back to
    * the full lane when virtualization is off or the width isn't measured yet.
    */
-  const visibleEvents = (row: ResourceRow<TMeta>): readonly PositionedEvent<TMeta>[] => {
+  const visibleEvents = (
+    row: ResourceRow<TMeta>,
+  ): readonly PositionedEvent<TMeta>[] => {
     // Horizontal event-culling assumes time on X; skip it in vertical orientation.
     if (vertical || !virtualization.enabled || viewportWidth <= 0) {
       return row.events;
@@ -341,7 +386,7 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
   // how much to render on each axis. Idempotent under StrictMode double-invoke.
   useEffect(() => {
     const el = scroller.current;
-    if (el === null || typeof ResizeObserver === 'undefined') {
+    if (el === null || typeof ResizeObserver === "undefined") {
       return;
     }
     const measure = (): void => {
@@ -354,11 +399,12 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     return () => observer.disconnect();
   }, []);
 
-  const eventLabel = (event: CalendarEvent<TMeta>): string => a11y.eventLabel(event);
+  const eventLabel = (event: CalendarEvent<TMeta>): string =>
+    a11y.eventLabel(event);
 
   /** Hover tooltip: title + localized time range. */
   const tooltip = (event: CalendarEvent<TMeta>): string => {
-    const title = event.title ?? '';
+    const title = event.title ?? "";
     const start = adapter.format(
       adapter.toZoned(event.start, resolvedZone),
       resolveTimeFormat(config.hour12),
@@ -375,16 +421,17 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     return `${title} · ${start}–${end}`.trim();
   };
 
-  const rowHeightPx = (row: ResourceRow<TMeta>): number => row.laneCount * laneHeight;
+  const rowHeightPx = (row: ResourceRow<TMeta>): number =>
+    row.laneCount * laneHeight;
 
   const shadeStyle = (band: ShadeBand): CSSProperties =>
     ({
-      '--band-start': `${band.startOffset * 100}%`,
-      '--band-size': `${band.span * 100}%`,
+      "--band-start": `${band.startOffset * 100}%`,
+      "--band-size": `${band.span * 100}%`,
     }) as CSSProperties;
 
   const nowStyle = (): CSSProperties =>
-    ({ '--now-pos': `${(viewModel.nowOffset ?? 0) * 100}%` }) as CSSProperties;
+    ({ "--now-pos": `${(viewModel.nowOffset ?? 0) * 100}%` }) as CSSProperties;
 
   const toggle = (row: ResourceRow<TMeta>): void => {
     if (!row.hasChildren) {
@@ -402,7 +449,8 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     resourceToggled?.({ resource: row.resource, expanded: !willCollapse });
   };
 
-  const isCollapsed = (row: ResourceRow<TMeta>): boolean => collapsed.has(row.resource.id);
+  const isCollapsed = (row: ResourceRow<TMeta>): boolean =>
+    collapsed.has(row.resource.id);
 
   // ── drag/resize gestures ──────────────────────────────────────────────────
   // Gesture state lives in refs (authoritative, updated synchronously mid-gesture)
@@ -418,9 +466,12 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
   /** Set briefly after an active drag so the trailing click doesn't also fire. */
   const suppressClick = useRef(false);
   /** Live-region text announced during keyboard move/resize. */
-  const [announcement, setAnnouncement] = useState('');
+  const [announcement, setAnnouncement] = useState("");
   /** Lane order (resource ids top→bottom) for keyboard lane navigation. */
-  const laneOrder = useMemo(() => viewModel.resourceRows.map((r) => r.resource.id), [viewModel]);
+  const laneOrder = useMemo(
+    () => viewModel.resourceRows.map((r) => r.resource.id),
+    [viewModel],
+  );
   /** In-flight drag-to-create gesture on an empty lane, or null. */
   const createDragRef = useRef<CreateDrag | null>(null);
   const [createDrag, setCreateDragState] = useState<CreateDrag | null>(null);
@@ -443,18 +494,19 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
   const onEventPointerDown = (
     ev: PositionedEvent<TMeta>,
     row: ResourceRow<TMeta>,
-    kind: 'move' | 'resize-start' | 'resize-end',
+    kind: "move" | "resize-start" | "resize-end",
     dom: PointerEvent<HTMLElement>,
   ): void => {
     if (!editable || ev.event.isReadonly === true || dom.button !== 0) {
       return;
     }
-    if (kind === 'move' && ev.event.draggable === false) {
+    if (kind === "move" && ev.event.draggable === false) {
       return;
     }
     dom.stopPropagation();
     const startMs = epochOf(ev.event.start);
-    const endMs = ev.event.end !== undefined ? epochOf(ev.event.end) : startMs + 3_600_000;
+    const endMs =
+      ev.event.end !== undefined ? epochOf(ev.event.end) : startMs + 3_600_000;
     setDrag({
       eventId: ev.event.id,
       kind,
@@ -468,7 +520,7 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
       active: false,
     });
     const target = dom.currentTarget;
-    if (typeof target.setPointerCapture === 'function') {
+    if (typeof target.setPointerCapture === "function") {
       try {
         target.setPointerCapture(dom.pointerId);
       } catch {
@@ -491,7 +543,10 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     setDrag({ ...d, deltaMinutes: minutes, active });
   };
 
-  const onEventPointerUp = (ev: PositionedEvent<TMeta>, dom: PointerEvent<HTMLElement>): void => {
+  const onEventPointerUp = (
+    ev: PositionedEvent<TMeta>,
+    dom: PointerEvent<HTMLElement>,
+  ): void => {
     const d = dragRef.current;
     if (d === null || d.pointerId !== dom.pointerId) {
       return;
@@ -503,7 +558,7 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     suppressClick.current = true;
     // Only a move can change lanes; a resize stays on its own lane.
     const targetResource =
-      d.kind === 'move'
+      d.kind === "move"
         ? (resourceAtPoint(dom.clientX, dom.clientY) ?? d.originResourceId)
         : d.originResourceId;
     commitDrag(ev.event, { ...d, targetResourceId: targetResource });
@@ -517,16 +572,16 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     }
     let startMs = d.originStartMs;
     let endMs = d.originEndMs;
-    if (d.kind === 'move') {
+    if (d.kind === "move") {
       startMs += deltaMs;
       endMs += deltaMs;
-    } else if (d.kind === 'resize-end') {
+    } else if (d.kind === "resize-end") {
       endMs = Math.max(startMs + 60_000, endMs + deltaMs);
     } else {
       startMs = Math.min(endMs - 60_000, startMs + deltaMs); // resize-start
     }
     const change: EventChange<TMeta> = {
-      kind: d.kind === 'move' ? 'move' : 'resize',
+      kind: d.kind === "move" ? "move" : "resize",
       event,
       start: adapter.toZoned(new Date(startMs), resolvedZone),
       end: adapter.toZoned(new Date(endMs), resolvedZone),
@@ -563,16 +618,22 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
       return;
     }
     const d = dragRef.current;
-    const grabbing = d !== null && d.pointerId === KEYBOARD_POINTER && d.eventId === ev.event.id;
+    const grabbing =
+      d !== null &&
+      d.pointerId === KEYBOARD_POINTER &&
+      d.eventId === ev.event.id;
 
     if (!grabbing) {
-      if (dom.key === 'Enter' || dom.key === ' ') {
+      if (dom.key === "Enter" || dom.key === " ") {
         dom.preventDefault();
         const startMs = epochOf(ev.event.start);
-        const endMs = ev.event.end !== undefined ? epochOf(ev.event.end) : startMs + 3_600_000;
+        const endMs =
+          ev.event.end !== undefined
+            ? epochOf(ev.event.end)
+            : startMs + 3_600_000;
         setDrag({
           eventId: ev.event.id,
-          kind: 'move',
+          kind: "move",
           originStartMs: startMs,
           originEndMs: endMs,
           originResourceId: row.resource.id,
@@ -589,18 +650,18 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
 
     // Axis-aware arrows: the time axis is X (horizontal) or Y (vertical); the resource
     // (lane) axis is the other one. Arrows follow the visual transposition.
-    const timeBack = vertical ? 'ArrowUp' : 'ArrowLeft';
-    const timeFwd = vertical ? 'ArrowDown' : 'ArrowRight';
-    const laneBack = vertical ? 'ArrowLeft' : 'ArrowUp';
-    const laneFwd = vertical ? 'ArrowRight' : 'ArrowDown';
+    const timeBack = vertical ? "ArrowUp" : "ArrowLeft";
+    const timeFwd = vertical ? "ArrowDown" : "ArrowRight";
+    const laneBack = vertical ? "ArrowLeft" : "ArrowUp";
+    const laneFwd = vertical ? "ArrowRight" : "ArrowDown";
     switch (dom.key) {
       case timeBack:
         dom.preventDefault();
-        nudge(d, dom.shiftKey ? 'resize-end' : 'move', -snap);
+        nudge(d, dom.shiftKey ? "resize-end" : "move", -snap);
         break;
       case timeFwd:
         dom.preventDefault();
-        nudge(d, dom.shiftKey ? 'resize-end' : 'move', snap);
+        nudge(d, dom.shiftKey ? "resize-end" : "move", snap);
         break;
       case laneBack:
         dom.preventDefault();
@@ -610,16 +671,19 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
         dom.preventDefault();
         moveLane(d, 1);
         break;
-      case 'Enter':
-      case ' ':
+      case "Enter":
+      case " ":
         dom.preventDefault();
         setDrag(null);
         setAnnouncement(
-          a11y.droppedLabel(ev.event, zonedFromMs(d.originStartMs + d.deltaMinutes * 60_000)),
+          a11y.droppedLabel(
+            ev.event,
+            zonedFromMs(d.originStartMs + d.deltaMinutes * 60_000),
+          ),
         );
         commitDrag(ev.event, d);
         break;
-      case 'Escape':
+      case "Escape":
         dom.preventDefault();
         setDrag(null);
         setAnnouncement(a11y.moveCancelledLabel(ev.event));
@@ -629,19 +693,28 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     }
   };
 
-  const nudge = (d: TimelineDrag, kind: 'move' | 'resize-end', step: number): void => {
+  const nudge = (
+    d: TimelineDrag,
+    kind: "move" | "resize-end",
+    step: number,
+  ): void => {
     const deltaMinutes = d.deltaMinutes + step;
     setDrag({ ...d, kind, deltaMinutes });
-    if (kind === 'resize-end') {
-      setAnnouncement(a11y.resizedLabel(zonedFromMs(d.originEndMs + deltaMinutes * 60_000)));
+    if (kind === "resize-end") {
+      setAnnouncement(
+        a11y.resizedLabel(zonedFromMs(d.originEndMs + deltaMinutes * 60_000)),
+      );
     } else {
-      setAnnouncement(a11y.movedLabel(zonedFromMs(d.originStartMs + deltaMinutes * 60_000)));
+      setAnnouncement(
+        a11y.movedLabel(zonedFromMs(d.originStartMs + deltaMinutes * 60_000)),
+      );
     }
   };
 
   const moveLane = (d: TimelineDrag, dir: number): void => {
     const idx = laneOrder.indexOf(d.targetResourceId);
-    const next = laneOrder[Math.min(laneOrder.length - 1, Math.max(0, idx + dir))];
+    const next =
+      laneOrder[Math.min(laneOrder.length - 1, Math.max(0, idx + dir))];
     if (next !== undefined && next !== d.targetResourceId) {
       setDrag({ ...d, targetResourceId: next });
       const name = resources.find((r) => r.id === next)?.name ?? next;
@@ -656,7 +729,9 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     drag !== null && drag.active && drag.eventId === ev.event.id;
 
   /** Live geometry for a block: shifts/resizes the dragged block's start/span in place. */
-  const previewGeo = (ev: PositionedEvent<TMeta>): { startOffset: number; span: number } => {
+  const previewGeo = (
+    ev: PositionedEvent<TMeta>,
+  ): { startOffset: number; span: number } => {
     const d = drag;
     if (d === null || !d.active || d.eventId !== ev.event.id) {
       return { startOffset: ev.startOffset, span: ev.span };
@@ -664,11 +739,17 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     const totalMin = Math.max(1, totalHours * 60);
     const minSpan = 1 / totalMin;
     const df = d.deltaMinutes / totalMin;
-    if (d.kind === 'resize-end') {
-      return { startOffset: ev.startOffset, span: Math.max(minSpan, ev.span + df) };
+    if (d.kind === "resize-end") {
+      return {
+        startOffset: ev.startOffset,
+        span: Math.max(minSpan, ev.span + df),
+      };
     }
-    if (d.kind === 'resize-start') {
-      return { startOffset: ev.startOffset + df, span: Math.max(minSpan, ev.span - df) };
+    if (d.kind === "resize-start") {
+      return {
+        startOffset: ev.startOffset + df,
+        span: Math.max(minSpan, ev.span - df),
+      };
     }
     return { startOffset: ev.startOffset + df, span: ev.span }; // move
   };
@@ -679,10 +760,10 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     // Axis-neutral geometry; the CSS maps --ev-start/--ev-size to the time axis and
     // --ev-lane/--ev-lane-size to the cross (sub-lane) axis per orientation.
     return {
-      '--ev-start': `${geo.startOffset * 100}%`,
-      '--ev-size': `calc(${geo.span * 100}% - 2px)`,
-      '--ev-lane': `${ev.lane * laneHeight}px`,
-      '--ev-lane-size': `${laneHeight - 3}px`,
+      "--ev-start": `${geo.startOffset * 100}%`,
+      "--ev-size": `calc(${geo.span * 100}% - 2px)`,
+      "--ev-lane": `${ev.lane * laneHeight}px`,
+      "--ev-lane-size": `${laneHeight - 3}px`,
       background: bg,
       color: fg,
     } as CSSProperties;
@@ -691,7 +772,7 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
   /** Resolve the resource lane under a viewport point (for cross-lane reassignment). */
   const resourceAtPoint = (x: number, y: number): string | null => {
     const doc = host.current?.ownerDocument ?? null;
-    if (doc === null || typeof doc.elementFromPoint !== 'function') {
+    if (doc === null || typeof doc.elementFromPoint !== "function") {
       return null;
     }
     let el: Element | null;
@@ -700,30 +781,45 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     } catch {
       return null;
     }
-    const lane = el === null ? null : el.closest('.cal-tl__row');
-    return lane?.getAttribute('data-resource-id') ?? null;
+    const lane = el === null ? null : el.closest(".cal-tl__row");
+    return lane?.getAttribute("data-resource-id") ?? null;
   };
 
-  const onRowClick = (row: ResourceRow<TMeta>, dom: MouseEvent<HTMLElement>): void => {
+  const onRowClick = (
+    row: ResourceRow<TMeta>,
+    dom: MouseEvent<HTMLElement>,
+  ): void => {
     if (suppressClick.current) {
       suppressClick.current = false;
       return; // trailing click after a drag-create
     }
-    const total = adapter.differenceInMinutes(viewModel.period.end, viewModel.period.start);
+    const total = adapter.differenceInMinutes(
+      viewModel.period.end,
+      viewModel.period.start,
+    );
     const target = dom.currentTarget;
     const frac = axisFraction(target, axisClient(dom));
-    const date = adapter.addMinutes(viewModel.period.start, Math.round(frac * total));
+    const date = adapter.addMinutes(
+      viewModel.period.start,
+      Math.round(frac * total),
+    );
     slotSelected?.({ date, resourceId: row.resource.id });
   };
 
   // ── drag-to-create on an empty lane ──────────────────────────────────────────
   const laneMinutes = (target: HTMLElement, client: number): number => {
-    const total = adapter.differenceInMinutes(viewModel.period.end, viewModel.period.start);
+    const total = adapter.differenceInMinutes(
+      viewModel.period.end,
+      viewModel.period.start,
+    );
     const raw = axisFraction(target, client) * total;
     return Math.round(raw / snap) * snap;
   };
 
-  const onLanePointerDown = (row: ResourceRow<TMeta>, dom: PointerEvent<HTMLElement>): void => {
+  const onLanePointerDown = (
+    row: ResourceRow<TMeta>,
+    dom: PointerEvent<HTMLElement>,
+  ): void => {
     if (!editable || dom.button !== 0) {
       return;
     }
@@ -736,7 +832,7 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
       startAxis: axisClient(dom),
       active: false,
     });
-    if (typeof target.setPointerCapture === 'function') {
+    if (typeof target.setPointerCapture === "function") {
       try {
         target.setPointerCapture(dom.pointerId);
       } catch {
@@ -753,7 +849,11 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     const delta = axisClient(dom) - c.startAxis;
     const eff = vertical ? delta : isRtl(host.current) ? -delta : delta;
     const deltaMin = Math.round(eff / (hourWidth / 60) / snap) * snap;
-    setCreateDrag({ ...c, deltaMin, active: c.active || Math.abs(delta) > DRAG_THRESHOLD_PX });
+    setCreateDrag({
+      ...c,
+      deltaMin,
+      active: c.active || Math.abs(delta) > DRAG_THRESHOLD_PX,
+    });
   };
 
   const onLanePointerUp = (dom: PointerEvent<HTMLElement>): void => {
@@ -769,7 +869,7 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     const startMin = Math.min(c.anchorMin, c.anchorMin + c.deltaMin);
     const dur = Math.max(snap, Math.abs(c.deltaMin));
     const change: EventChange<TMeta> = {
-      kind: 'create',
+      kind: "create",
       event: null,
       start: adapter.addMinutes(viewModel.period.start, startMin),
       end: adapter.addMinutes(viewModel.period.start, startMin + dur),
@@ -794,14 +894,17 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
     const startMin = Math.min(c.anchorMin, c.anchorMin + c.deltaMin);
     const dur = Math.max(snap, Math.abs(c.deltaMin));
     return {
-      '--ev-start': `${(startMin / total) * 100}%`,
-      '--ev-size': `${(dur / total) * 100}%`,
+      "--ev-start": `${(startMin / total) * 100}%`,
+      "--ev-size": `${(dur / total) * 100}%`,
     } as CSSProperties;
   };
 
   /** Map a pointer position on a lane back to a drop time (axis- and RTL-aware). */
   const dropTime = (target: HTMLElement, client: number): ZonedDateTime => {
-    const total = adapter.differenceInMinutes(viewModel.period.end, viewModel.period.start);
+    const total = adapter.differenceInMinutes(
+      viewModel.period.end,
+      viewModel.period.start,
+    );
     const frac = axisFraction(target, client);
     return adapter.addMinutes(viewModel.period.start, Math.round(frac * total));
   };
@@ -810,26 +913,29 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
   const onLaneDragOver = (dom: DragEvent<HTMLElement>): void => {
     dom.preventDefault();
     if (dom.dataTransfer) {
-      dom.dataTransfer.dropEffect = 'copy';
+      dom.dataTransfer.dropEffect = "copy";
     }
   };
 
   /** Handle an external item dropped onto a lane → resolve (time, resource, payload). */
-  const onExternalDrop = (row: ResourceRow<TMeta>, dom: DragEvent<HTMLElement>): void => {
+  const onExternalDrop = (
+    row: ResourceRow<TMeta>,
+    dom: DragEvent<HTMLElement>,
+  ): void => {
     dom.preventDefault();
     const target = dom.currentTarget;
     const date = dropTime(target, axisClient(dom));
-    const data = dom.dataTransfer?.getData('text/plain') ?? '';
+    const data = dom.dataTransfer?.getData("text/plain") ?? "";
     externalDrop?.({ date, resourceId: row.resource.id, data });
   };
 
   const rootClasses = [
-    'cal-timeline-view',
-    vertical ? 'cal-tl--vertical' : '',
-    className ?? '',
+    "cal-timeline-view",
+    vertical ? "cal-tl--vertical" : "",
+    className ?? "",
   ]
     .filter(Boolean)
-    .join(' ');
+    .join(" ");
 
   return (
     <div ref={host} className={rootClasses}>
@@ -838,13 +944,17 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
         className="cal-tl"
         style={
           {
-            '--cal-tl-time-extent': `${totalHours * hourWidth}px`,
-            '--cal-tl-hour-w': `${hourWidth}px`,
+            "--cal-tl-time-extent": `${totalHours * hourWidth}px`,
+            "--cal-tl-hour-w": `${hourWidth}px`,
           } as CSSProperties
         }
         onScroll={onScroll}
       >
-        <div className="cal-tl__grid" role="grid" aria-label="Resource timeline">
+        <div
+          className="cal-tl__grid"
+          role="grid"
+          aria-label="Resource timeline"
+        >
           {/* Corner (frozen top-left). Decorative: resource lanes are self-labelled. */}
           <div className="cal-tl__corner" aria-hidden="true">
             <span className="cal-tl__corner-label">{intl.resourcesHeader}</span>
@@ -857,14 +967,17 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
                 {hrow.cells.map((cell, ci) => (
                   <div
                     key={ci}
-                    className={['cal-tl__hcell', cell.isNow ? 'cal-tl__hcell--now' : '']
+                    className={[
+                      "cal-tl__hcell",
+                      cell.isNow ? "cal-tl__hcell--now" : "",
+                    ]
                       .filter(Boolean)
-                      .join(' ')}
+                      .join(" ")}
                     role="columnheader"
                     style={
                       {
-                        '--hc-start': `${cell.offset * 100}%`,
-                        '--hc-size': `${cell.span * 100}%`,
+                        "--hc-start": `${cell.offset * 100}%`,
+                        "--hc-size": `${cell.span * 100}%`,
                       } as CSSProperties
                     }
                   >
@@ -893,8 +1006,8 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
                 role="rowheader"
                 style={
                   {
-                    '--cal-tl-lane-extent': `${rowHeightPx(row)}px`,
-                    '--cal-tl-depth': row.depth,
+                    "--cal-tl-lane-extent": `${rowHeightPx(row)}px`,
+                    "--cal-tl-depth": row.depth,
                   } as CSSProperties
                 }
               >
@@ -912,11 +1025,12 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
                         className="cal-tl__twisty"
                         aria-expanded={!isCollapsed(row)}
                         aria-label={
-                          (isCollapsed(row) ? 'Expand ' : 'Collapse ') + row.resource.name
+                          (isCollapsed(row) ? "Expand " : "Collapse ") +
+                          row.resource.name
                         }
                         onClick={() => toggle(row)}
                       >
-                        {isCollapsed(row) ? '▸' : '▾'}
+                        {isCollapsed(row) ? "▸" : "▾"}
                       </button>
                     )}
                     <span className="cal-tl__rname">{row.resource.name}</span>
@@ -931,7 +1045,11 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
                 className="cal-tl__row"
                 role="gridcell"
                 data-resource-id={row.resource.id}
-                style={{ '--cal-tl-lane-extent': `${rowHeightPx(row)}px` } as CSSProperties}
+                style={
+                  {
+                    "--cal-tl-lane-extent": `${rowHeightPx(row)}px`,
+                  } as CSSProperties
+                }
                 aria-label={row.resource.name}
                 onClick={(e) => onRowClick(row, e)}
                 onPointerDown={(e) => onLanePointerDown(row, e)}
@@ -945,12 +1063,12 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
                   <div
                     key={bi}
                     className={[
-                      'cal-tl__shade',
-                      band.kind === 'block' ? 'cal-tl__shade--block' : '',
-                      band.kind === 'off' ? 'cal-tl__shade--off' : '',
+                      "cal-tl__shade",
+                      band.kind === "block" ? "cal-tl__shade--block" : "",
+                      band.kind === "off" ? "cal-tl__shade--off" : "",
                     ]
                       .filter(Boolean)
-                      .join(' ')}
+                      .join(" ")}
                     style={shadeStyle(band)}
                     aria-hidden="true"
                   ></div>
@@ -959,7 +1077,11 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
                 {(() => {
                   const ghost = createGhostStyle(row);
                   return ghost !== null ? (
-                    <div className="cal-tl__create-ghost" style={ghost} aria-hidden="true"></div>
+                    <div
+                      className="cal-tl__create-ghost"
+                      style={ghost}
+                      aria-hidden="true"
+                    ></div>
                   ) : null;
                 })()}
 
@@ -968,18 +1090,22 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
                     key={ev.event.id}
                     type="button"
                     className={[
-                      'cal-tl__event',
-                      ev.continuesBefore ? 'cal-tl__event--continues-before' : '',
-                      ev.continuesAfter ? 'cal-tl__event--continues-after' : '',
-                      isDragging(ev) ? 'cal-tl__event--dragging' : '',
-                      ev.event.cssClass ?? '',
+                      "cal-tl__event",
+                      ev.continuesBefore
+                        ? "cal-tl__event--continues-before"
+                        : "",
+                      ev.continuesAfter ? "cal-tl__event--continues-after" : "",
+                      isDragging(ev) ? "cal-tl__event--dragging" : "",
+                      ev.event.cssClass ?? "",
                     ]
                       .filter(Boolean)
-                      .join(' ')}
+                      .join(" ")}
                     style={eventStyle(ev)}
                     aria-label={eventLabel(ev.event)}
                     title={tooltip(ev.event)}
-                    onPointerDown={(e) => onEventPointerDown(ev, row, 'move', e)}
+                    onPointerDown={(e) =>
+                      onEventPointerDown(ev, row, "move", e)
+                    }
                     onPointerMove={onEventPointerMove}
                     onPointerUp={(e) => onEventPointerUp(ev, e)}
                     onPointerCancel={onEventPointerCancel}
@@ -989,7 +1115,9 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
                     {renderEvent !== undefined ? (
                       renderEvent(ev.event)
                     ) : (
-                      <span className="cal-tl__event-title">{ev.event.title}</span>
+                      <span className="cal-tl__event-title">
+                        {ev.event.title}
+                      </span>
                     )}
 
                     {editable && ev.event.isReadonly !== true && (
@@ -997,7 +1125,9 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
                         <span
                           className="cal-tl__resize cal-tl__resize--start"
                           aria-hidden="true"
-                          onPointerDown={(e) => onEventPointerDown(ev, row, 'resize-start', e)}
+                          onPointerDown={(e) =>
+                            onEventPointerDown(ev, row, "resize-start", e)
+                          }
                           onPointerMove={onEventPointerMove}
                           onPointerUp={(e) => onEventPointerUp(ev, e)}
                           onPointerCancel={onEventPointerCancel}
@@ -1005,7 +1135,9 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
                         <span
                           className="cal-tl__resize cal-tl__resize--end"
                           aria-hidden="true"
-                          onPointerDown={(e) => onEventPointerDown(ev, row, 'resize-end', e)}
+                          onPointerDown={(e) =>
+                            onEventPointerDown(ev, row, "resize-end", e)
+                          }
                           onPointerMove={onEventPointerMove}
                           onPointerUp={(e) => onEventPointerUp(ev, e)}
                           onPointerCancel={onEventPointerCancel}
@@ -1016,7 +1148,11 @@ export function CalTimelineView<TMeta = unknown>(props: CalTimelineViewProps<TMe
                 ))}
 
                 {viewModel.nowOffset !== null && (
-                  <div className="cal-tl__now" style={nowStyle()} aria-hidden="true"></div>
+                  <div
+                    className="cal-tl__now"
+                    style={nowStyle()}
+                    aria-hidden="true"
+                  ></div>
                 )}
               </div>
             </div>

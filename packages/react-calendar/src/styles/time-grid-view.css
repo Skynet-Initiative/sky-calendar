@@ -18,7 +18,9 @@
   --cal-tg-time-head: 1.75rem; /* height of the top time-axis strip */
   --cal-tg-lane-h: 2.7rem; /* height of one event chip / sub-lane (fits a 2-line title) */
   /* A day-row is tall enough for its busiest stack of overlapping events. */
-  --cal-tg-row-h: calc(var(--cal-tg-max-lanes, 1) * var(--cal-tg-lane-h) + 0.6rem);
+  --cal-tg-row-h: calc(
+    var(--cal-tg-max-lanes, 1) * var(--cal-tg-lane-h) + 0.6rem
+  );
 }
 
 .cal-tg {
@@ -26,9 +28,9 @@
   grid-template-columns: var(--cal-tg-gutter-w) 1fr;
   grid-template-rows: auto auto 1fr;
   grid-template-areas:
-    'corner headers'
-    'allday-gutter allday'
-    'gutter cols';
+    "corner headers"
+    "allday-gutter allday"
+    "gutter cols";
   border-block-start: 1px solid var(--cal-grid-line);
   border-inline-start: 1px solid var(--cal-grid-line);
   /* Grow to fill the host (a flex column); the gutter/cols carry their hour-based
@@ -104,7 +106,9 @@
 
 .cal-tg__allday {
   grid-area: allday;
-  min-block-size: calc(var(--cal-tg-allday-lanes, 0) * (var(--cal-tg-allday-row) + 2px) + 2px);
+  min-block-size: calc(
+    var(--cal-tg-allday-lanes, 0) * (var(--cal-tg-allday-row) + 2px) + 2px
+  );
   border-block-end: 1px solid var(--cal-grid-line);
   background: var(--cal-allday-bg);
 }
@@ -357,8 +361,8 @@
   grid-template-columns: var(--cal-tg-day-w) 1fr;
   grid-template-rows: var(--cal-tg-time-head) 1fr;
   grid-template-areas:
-    'corner gutter'
-    'headers cols';
+    "corner gutter"
+    "headers cols";
 }
 /* All-day band is omitted in week-as-rows. */
 .cal-time-grid-view.cal-tg--horizontal .cal-tg__allday-gutter,
@@ -427,8 +431,8 @@
   inline-size: var(--ev-size);
   block-size: calc(var(--cal-tg-lane-h) - 0.4rem);
   inset-block-start: calc(
-    (100% - var(--cal-tg-max-lanes, 1) * var(--cal-tg-lane-h)) / 2 + var(--ev-lane, 0) *
-      var(--cal-tg-lane-h) + 0.2rem
+    (100% - var(--cal-tg-max-lanes, 1) * var(--cal-tg-lane-h)) / 2 +
+      var(--ev-lane, 0) * var(--cal-tg-lane-h) + 0.2rem
   );
   min-block-size: 0;
   /* Wide enough to hold a whole word on a line; a short event overflows its slot

@@ -22,12 +22,12 @@ export interface ZonedDateTime {
  * grids change. Resolved through `Intl` calendar support in the date adapter.
  */
 export type CalendarSystem =
-  | 'gregory'
-  | 'islamic'
-  | 'islamic-umalqura'
-  | 'buddhist'
-  | 'japanese'
-  | 'persian';
+  | "gregory"
+  | "islamic"
+  | "islamic-umalqura"
+  | "buddhist"
+  | "japanese"
+  | "persian";
 
 /** Calendar-system year/month/day fields plus an optional era label. */
 export interface EraFields {

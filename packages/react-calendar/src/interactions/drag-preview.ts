@@ -1,7 +1,7 @@
-import { snapValue } from '../core/layout/projection';
+import { snapValue } from "../core/layout/projection";
 
 /** The kind of in-flight gesture. */
-export type DragKind = 'move' | 'resize-start' | 'resize-end' | 'create';
+export type DragKind = "move" | "resize-start" | "resize-end" | "create";
 
 /** Pure inputs describing an in-flight gesture (no DOM, no signals). */
 export interface DragInput {
@@ -52,24 +52,30 @@ export function computeDragTimes(input: DragInput): DragTimes {
   const deltaMs = snapValue(input.deltaMinutes, input.snapMinutes) * MS_PER_MIN;
 
   switch (input.kind) {
-    case 'move':
-      return { startMs: input.originStartMs + deltaMs, endMs: input.originEndMs + deltaMs };
+    case "move":
+      return {
+        startMs: input.originStartMs + deltaMs,
+        endMs: input.originEndMs + deltaMs,
+      };
 
-    case 'resize-end': {
+    case "resize-end": {
       const start = input.originStartMs;
       const end = Math.max(start + minMs, input.originEndMs + deltaMs);
       return { startMs: start, endMs: end };
     }
 
-    case 'resize-start': {
+    case "resize-start": {
       const end = input.originEndMs;
       const start = Math.min(end - minMs, input.originStartMs + deltaMs);
       return { startMs: start, endMs: end };
     }
 
-    case 'create': {
+    case "create": {
       const anchor = snapMs(input.originStartMs, input.snapMinutes);
-      const pointer = snapMs(input.pointerMs ?? input.originStartMs, input.snapMinutes);
+      const pointer = snapMs(
+        input.pointerMs ?? input.originStartMs,
+        input.snapMinutes,
+      );
       const start = Math.min(anchor, pointer);
       let end = Math.max(anchor, pointer);
       if (end - start < minMs) {

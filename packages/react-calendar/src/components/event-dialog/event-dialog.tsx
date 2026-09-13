@@ -1,13 +1,13 @@
-import { useCallback, useRef, type KeyboardEvent, type ReactNode } from 'react';
-import { useFocusTrap } from '../../a11y/use-focus-trap';
-import { resolveTimeFormat } from '../../core/config/calendar-config';
-import type { CalendarSystem } from '../../core/date-adapter/zoned-date-time';
-import type { CalendarEvent } from '../../core/model/calendar-event';
-import type { CalendarResource } from '../../core/model/calendar-resource';
-import { useCalendar, useDateAdapter } from '../../provider/calendar-context';
-import { sanitizeStatusKey } from '../../theme/tokens';
-import { hostZone } from '../internal/host';
-import type { RenderEventDetail } from '../types';
+import { useCallback, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useFocusTrap } from "../../a11y/use-focus-trap";
+import { resolveTimeFormat } from "../../core/config/calendar-config";
+import type { CalendarSystem } from "../../core/date-adapter/zoned-date-time";
+import type { CalendarEvent } from "../../core/model/calendar-event";
+import type { CalendarResource } from "../../core/model/calendar-resource";
+import { useCalendar, useDateAdapter } from "../../provider/calendar-context";
+import { sanitizeStatusKey } from "../../theme/tokens";
+import { hostZone } from "../internal/host";
+import type { RenderEventDetail } from "../types";
 
 /** Props for {@link CalEventDialog}. Names/semantics mirror the Angular inputs/outputs. */
 export interface CalEventDialogProps<TMeta = unknown> {
@@ -37,7 +37,9 @@ export interface CalEventDialogProps<TMeta = unknown> {
  * Dependency-free: `role="dialog"` + `aria-modal`, focus moves into the dialog
  * on open (and back to the opener on close), `Esc` / backdrop dismiss, SSR-safe.
  */
-export function CalEventDialog<TMeta = unknown>(props: CalEventDialogProps<TMeta>): ReactNode {
+export function CalEventDialog<TMeta = unknown>(
+  props: CalEventDialogProps<TMeta>,
+): ReactNode {
   const adapter = useDateAdapter();
   const { config, intl } = useCalendar();
   const panel = useRef<HTMLDivElement>(null);
@@ -65,7 +67,12 @@ export function CalEventDialog<TMeta = unknown>(props: CalEventDialogProps<TMeta
   const system = (): CalendarSystem => calendarSystem ?? config.calendarSystem;
 
   const dateLabel = (ev: CalendarEvent<TMeta>): string =>
-    adapter.format(adapter.toZoned(ev.start, zone()), 'full-date', resolvedLocale(), system());
+    adapter.format(
+      adapter.toZoned(ev.start, zone()),
+      "full-date",
+      resolvedLocale(),
+      system(),
+    );
 
   const timeLabel = (ev: CalendarEvent<TMeta>): string => {
     if (ev.allDay === true) {
@@ -73,17 +80,25 @@ export function CalEventDialog<TMeta = unknown>(props: CalEventDialogProps<TMeta
     }
     const z = zone();
     const loc = resolvedLocale();
-    const start = adapter.format(adapter.toZoned(ev.start, z), resolveTimeFormat(config.hour12), loc);
+    const start = adapter.format(
+      adapter.toZoned(ev.start, z),
+      resolveTimeFormat(config.hour12),
+      loc,
+    );
     if (ev.end === undefined) {
       return start;
     }
-    const end = adapter.format(adapter.toZoned(ev.end, z), resolveTimeFormat(config.hour12), loc);
+    const end = adapter.format(
+      adapter.toZoned(ev.end, z),
+      resolveTimeFormat(config.hour12),
+      loc,
+    );
     return `${start} – ${end}`;
   };
 
   const statusColor = (ev: CalendarEvent<TMeta>): string => {
     if (ev.status === undefined) {
-      return 'var(--cal-accent)';
+      return "var(--cal-accent)";
     }
     return `var(--cal-event-${sanitizeStatusKey(ev.status)}, var(--cal-accent))`;
   };
@@ -91,7 +106,7 @@ export function CalEventDialog<TMeta = unknown>(props: CalEventDialogProps<TMeta
   /** Ink proven AA against the status colour (so badge text stays legible). */
   const statusInk = (ev: CalendarEvent<TMeta>): string => {
     if (ev.status === undefined) {
-      return 'var(--cal-accent-ink)';
+      return "var(--cal-accent-ink)";
     }
     return `var(--cal-event-${sanitizeStatusKey(ev.status)}-ink, var(--cal-accent-ink))`;
   };
@@ -99,35 +114,39 @@ export function CalEventDialog<TMeta = unknown>(props: CalEventDialogProps<TMeta
   const resourceNames = (ev: CalendarEvent<TMeta>): string => {
     const ids = ev.resourceIds ?? [];
     if (ids.length === 0) {
-      return '';
+      return "";
     }
     const byId = new Map(resources.map((r) => [r.id, r.name]));
-    return ids.map((id) => byId.get(id) ?? id).join(', ');
+    return ids.map((id) => byId.get(id) ?? id).join(", ");
   };
 
   const isRecurring = (ev: CalendarEvent<TMeta>): boolean =>
     ev.recurrenceRule !== undefined || ev.recurrenceId !== undefined;
 
   const onPanelKeydown = (dom: KeyboardEvent): void => {
-    if (dom.key === 'Escape') {
+    if (dom.key === "Escape") {
       close();
     }
   };
 
-  const names = event !== null ? resourceNames(event) : '';
+  const names = event !== null ? resourceNames(event) : "";
 
   return (
-    <div className={`cal-event-dialog${className ? ` ${className}` : ''}`}>
+    <div className={`cal-event-dialog${className ? ` ${className}` : ""}`}>
       {event !== null && (
         <div className="cal-evd__scrim">
-          <div className="cal-evd__backdrop" onClick={close} aria-hidden="true"></div>
+          <div
+            className="cal-evd__backdrop"
+            onClick={close}
+            aria-hidden="true"
+          ></div>
           <div
             ref={panel}
             className="cal-evd"
             role="dialog"
             aria-modal="true"
             tabIndex={-1}
-            aria-label={event.title ?? 'Event'}
+            aria-label={event.title ?? "Event"}
             onKeyDown={onPanelKeydown}
           >
             {renderEventDetail !== undefined ? (
@@ -140,7 +159,9 @@ export function CalEventDialog<TMeta = unknown>(props: CalEventDialogProps<TMeta
                     style={{ background: statusColor(event) }}
                     aria-hidden="true"
                   ></span>
-                  <h2 className="cal-evd__title">{event.title ?? intl.untitledEvent}</h2>
+                  <h2 className="cal-evd__title">
+                    {event.title ?? intl.untitledEvent}
+                  </h2>
                   <button
                     type="button"
                     className="cal-evd__close"
@@ -160,20 +181,23 @@ export function CalEventDialog<TMeta = unknown>(props: CalEventDialogProps<TMeta
                       <span className="cal-evd__time">{timeLabel(event)}</span>
                     </dd>
                   </div>
-                  {event.status !== undefined && event.status !== '' && (
+                  {event.status !== undefined && event.status !== "" && (
                     <div className="cal-evd__row">
                       <dt>{intl.dialogStatus}</dt>
                       <dd>
                         <span
                           className="cal-evd__badge"
-                          style={{ background: statusColor(event), color: statusInk(event) }}
+                          style={{
+                            background: statusColor(event),
+                            color: statusInk(event),
+                          }}
                         >
                           {event.status}
                         </span>
                       </dd>
                     </div>
                   )}
-                  {names !== '' && (
+                  {names !== "" && (
                     <div className="cal-evd__row">
                       <dt>{intl.resourcesHeader}</dt>
                       <dd>{names}</dd>

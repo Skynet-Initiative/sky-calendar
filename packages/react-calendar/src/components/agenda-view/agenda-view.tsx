@@ -1,18 +1,21 @@
-import { useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
-import { resolveTimeFormat } from '../../core/config/calendar-config';
-import type { CalendarSystem, ZonedDateTime } from '../../core/date-adapter/zoned-date-time';
-import type { CalendarEvent } from '../../core/model/calendar-event';
-import { buildAgendaView } from '../../core/view-model/build-agenda-view';
-import type { AgendaDay } from '../../core/view-model/agenda-view-model';
-import { useCalendar, useDateAdapter } from '../../provider/calendar-context';
-import type { CalThemeMode } from '../../theme/derive-theme';
+import { useMemo, useRef, type CSSProperties, type ReactNode } from "react";
+import { resolveTimeFormat } from "../../core/config/calendar-config";
+import type {
+  CalendarSystem,
+  ZonedDateTime,
+} from "../../core/date-adapter/zoned-date-time";
+import type { CalendarEvent } from "../../core/model/calendar-event";
+import { buildAgendaView } from "../../core/view-model/build-agenda-view";
+import type { AgendaDay } from "../../core/view-model/agenda-view-model";
+import { useCalendar, useDateAdapter } from "../../provider/calendar-context";
+import type { CalThemeMode } from "../../theme/derive-theme";
 import {
   eventDotColor,
   expandForWindow,
   hostZone,
   useHostTheme,
   useViewPeriodChanged,
-} from '../internal/host';
+} from "../internal/host";
 
 /** Props for {@link CalAgendaView}. Names/semantics mirror the Angular inputs/outputs. */
 export interface CalAgendaViewProps<TMeta = unknown> {
@@ -51,7 +54,9 @@ export interface CalAgendaViewProps<TMeta = unknown> {
  * start. Theme-agnostic `--cal-*`, list ARIA semantics, date math via the
  * adapter. The most compact, mobile-friendly view (and the narrow-width fallback).
  */
-export function CalAgendaView<TMeta = unknown>(props: CalAgendaViewProps<TMeta>): ReactNode {
+export function CalAgendaView<TMeta = unknown>(
+  props: CalAgendaViewProps<TMeta>,
+): ReactNode {
   const adapter = useDateAdapter();
   const { config, recurrenceAdapter, a11y, intl } = useCalendar();
   const host = useRef<HTMLDivElement>(null);
@@ -78,7 +83,11 @@ export function CalAgendaView<TMeta = unknown>(props: CalAgendaViewProps<TMeta>)
   const viewModel = useMemo(() => {
     const anchor = adapter.toZoned(viewDate, resolvedZone);
     // Probe the agenda window (events don't affect the period) then expand into it.
-    const probe = buildAgendaView<TMeta>(adapter, { viewDate: anchor, events: [], days });
+    const probe = buildAgendaView<TMeta>(adapter, {
+      viewDate: anchor,
+      events: [],
+      days,
+    });
     const expanded = expandForWindow(
       events,
       recurrenceAdapter,
@@ -92,21 +101,36 @@ export function CalAgendaView<TMeta = unknown>(props: CalAgendaViewProps<TMeta>)
       events: expanded,
       days,
       hideEmptyDays,
-      ...(today !== null ? { today: adapter.toZoned(today, resolvedZone) } : {}),
+      ...(today !== null
+        ? { today: adapter.toZoned(today, resolvedZone) }
+        : {}),
     });
-  }, [adapter, recurrenceAdapter, events, viewDate, days, hideEmptyDays, today, resolvedZone]);
+  }, [
+    adapter,
+    recurrenceAdapter,
+    events,
+    viewDate,
+    days,
+    hideEmptyDays,
+    today,
+    resolvedZone,
+  ]);
 
   useViewPeriodChanged(viewModel.period, resolvedZone, viewPeriodChanged);
 
   const dayHeading = (day: AgendaDay<TMeta>): string =>
-    adapter.format(day.date, 'full-date', resolvedLocale, resolvedSystem);
+    adapter.format(day.date, "full-date", resolvedLocale, resolvedSystem);
 
   const timeLabel = (event: CalendarEvent<TMeta>): string => {
     if (event.allDay === true) {
       return intl.allDay;
     }
     const start = adapter.toZoned(event.start, resolvedZone);
-    const startLabel = adapter.format(start, resolveTimeFormat(config.hour12), resolvedLocale);
+    const startLabel = adapter.format(
+      start,
+      resolveTimeFormat(config.hour12),
+      resolvedLocale,
+    );
     if (event.end === undefined) {
       return startLabel;
     }
@@ -122,14 +146,20 @@ export function CalAgendaView<TMeta = unknown>(props: CalAgendaViewProps<TMeta>)
   });
 
   return (
-    <div ref={host} className={`cal-agenda-view${className ? ` ${className}` : ''}`}>
+    <div
+      ref={host}
+      className={`cal-agenda-view${className ? ` ${className}` : ""}`}
+    >
       <div className="cal-agenda">
         {viewModel.days.map((day) => (
           <section
             key={day.date.epochMs}
-            className={['cal-agenda__day', day.isToday ? 'cal-agenda__day--today' : '']
+            className={[
+              "cal-agenda__day",
+              day.isToday ? "cal-agenda__day--today" : "",
+            ]
               .filter(Boolean)
-              .join(' ')}
+              .join(" ")}
           >
             <h3 className="cal-agenda__date">{dayHeading(day)}</h3>
             {day.events.length === 0 ? (
@@ -137,12 +167,16 @@ export function CalAgendaView<TMeta = unknown>(props: CalAgendaViewProps<TMeta>)
             ) : (
               <ul className="cal-agenda__list" role="list">
                 {day.events.map((event) => (
-                  <li key={event.id} className="cal-agenda__item" role="listitem">
+                  <li
+                    key={event.id}
+                    className="cal-agenda__item"
+                    role="listitem"
+                  >
                     <button
                       type="button"
-                      className={['cal-agenda__row', event.cssClass ?? '']
+                      className={["cal-agenda__row", event.cssClass ?? ""]
                         .filter(Boolean)
-                        .join(' ')}
+                        .join(" ")}
                       aria-label={eventLabel(event)}
                       onClick={() => eventClicked?.({ event })}
                     >
@@ -151,7 +185,9 @@ export function CalAgendaView<TMeta = unknown>(props: CalAgendaViewProps<TMeta>)
                         style={dotStyle(event)}
                         aria-hidden="true"
                       ></span>
-                      <span className="cal-agenda__time">{timeLabel(event)}</span>
+                      <span className="cal-agenda__time">
+                        {timeLabel(event)}
+                      </span>
                       <span className="cal-agenda__title">{event.title}</span>
                     </button>
                   </li>

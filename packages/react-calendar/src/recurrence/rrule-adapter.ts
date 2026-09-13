@@ -1,12 +1,12 @@
-import { RRule, Weekday } from 'rrule';
-import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
+import { RRule, Weekday } from "rrule";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import type {
   RecurrenceAdapter,
   RecurrenceEnd,
   RecurrenceFreq,
   RecurrenceParts,
-} from '../index';
-import type { ZonedDateTime } from '../index';
+} from "../index";
+import type { ZonedDateTime } from "../index";
 
 const FREQ_TO_RRULE: Record<RecurrenceFreq, number> = {
   yearly: RRule.YEARLY,
@@ -15,10 +15,10 @@ const FREQ_TO_RRULE: Record<RecurrenceFreq, number> = {
   daily: RRule.DAILY,
 };
 const RRULE_TO_FREQ: Record<number, RecurrenceFreq> = {
-  [RRule.YEARLY]: 'yearly',
-  [RRule.MONTHLY]: 'monthly',
-  [RRule.WEEKLY]: 'weekly',
-  [RRule.DAILY]: 'daily',
+  [RRule.YEARLY]: "yearly",
+  [RRule.MONTHLY]: "monthly",
+  [RRule.WEEKLY]: "weekly",
+  [RRule.DAILY]: "daily",
 };
 
 /** Our weekday (0=Sun…6=Sat) → rrule weekday (0=Mon…6=Sun). */
@@ -65,18 +65,23 @@ export class RruleRecurrenceAdapter implements RecurrenceAdapter {
 
   parse(rule: string): RecurrenceParts {
     const o = RRule.parseString(rule);
-    const freq = RRULE_TO_FREQ[o.freq ?? RRule.WEEKLY] ?? 'weekly';
-    let end: RecurrenceEnd = { type: 'never' };
-    if (typeof o.count === 'number') {
-      end = { type: 'count', count: o.count };
+    const freq = RRULE_TO_FREQ[o.freq ?? RRule.WEEKLY] ?? "weekly";
+    let end: RecurrenceEnd = { type: "never" };
+    if (typeof o.count === "number") {
+      end = { type: "count", count: o.count };
     } else if (o.until instanceof Date) {
-      end = { type: 'until', until: { epochMs: o.until.getTime(), zone: 'UTC' } };
+      end = {
+        type: "until",
+        until: { epochMs: o.until.getTime(), zone: "UTC" },
+      };
     }
     const parts: RecurrenceParts = {
       freq,
       interval: o.interval ?? 1,
       end,
-      ...(o.byweekday ? { byWeekday: this.readWeekdays(o.byweekday).map(toOurWeekday) } : {}),
+      ...(o.byweekday
+        ? { byWeekday: this.readWeekdays(o.byweekday).map(toOurWeekday) }
+        : {}),
       ...(o.bymonthday ? { byMonthday: asArray(o.bymonthday) } : {}),
       ...(o.bymonth ? { byMonth: asArray(o.bymonth) } : {}),
       ...(o.bysetpos ? { bySetPos: asArray(o.bysetpos) } : {}),
@@ -90,7 +95,9 @@ export class RruleRecurrenceAdapter implements RecurrenceAdapter {
       interval: Math.max(1, parts.interval),
     };
     if (parts.byWeekday && parts.byWeekday.length > 0) {
-      options.byweekday = parts.byWeekday.map((w) => new Weekday(toRRuleWeekday(w)));
+      options.byweekday = parts.byWeekday.map(
+        (w) => new Weekday(toRRuleWeekday(w)),
+      );
     }
     if (parts.byMonthday && parts.byMonthday.length > 0) {
       options.bymonthday = [...parts.byMonthday];
@@ -101,9 +108,9 @@ export class RruleRecurrenceAdapter implements RecurrenceAdapter {
     if (parts.bySetPos && parts.bySetPos.length > 0) {
       options.bysetpos = [...parts.bySetPos];
     }
-    if (parts.end.type === 'count') {
+    if (parts.end.type === "count") {
       options.count = parts.end.count;
-    } else if (parts.end.type === 'until') {
+    } else if (parts.end.type === "until") {
       // UNTIL must live in the same naive wall-clock space the series is expanded
       // in, so convert it to the until's wall-clock components as a naive-UTC date.
       const u = parts.end.until;
@@ -111,7 +118,7 @@ export class RruleRecurrenceAdapter implements RecurrenceAdapter {
       options.until = new Date(`${wall}Z`);
     }
     const str = RRule.optionsToString(options);
-    return str.replace(/^RRULE:/, '');
+    return str.replace(/^RRULE:/, "");
   }
 
   /** Instant → naive-UTC Date carrying its wall-clock components in `zone`. */
@@ -129,7 +136,7 @@ export class RruleRecurrenceAdapter implements RecurrenceAdapter {
   private readWeekdays(byweekday: unknown): number[] {
     const arr = asArray(byweekday);
     return arr.map((w) => {
-      if (typeof w === 'number') {
+      if (typeof w === "number") {
         return w;
       }
       if (w instanceof Weekday) {

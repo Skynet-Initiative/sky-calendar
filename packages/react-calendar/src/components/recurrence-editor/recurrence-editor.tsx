@@ -1,24 +1,33 @@
-import { useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import type {
   RecurrenceAdapter,
   RecurrenceEnd,
   RecurrenceFreq,
   RecurrenceParts,
-} from '../../core/recurrence/recurrence-adapter';
-import { useCalendar } from '../../provider/calendar-context';
+} from "../../core/recurrence/recurrence-adapter";
+import { useCalendar } from "../../provider/calendar-context";
 
-const FREQS: readonly RecurrenceFreq[] = ['daily', 'weekly', 'monthly', 'yearly'];
+const FREQS: readonly RecurrenceFreq[] = [
+  "daily",
+  "weekly",
+  "monthly",
+  "yearly",
+];
 const WEEKDAYS: readonly { value: number; label: string }[] = [
-  { value: 0, label: 'S' },
-  { value: 1, label: 'M' },
-  { value: 2, label: 'T' },
-  { value: 3, label: 'W' },
-  { value: 4, label: 'T' },
-  { value: 5, label: 'F' },
-  { value: 6, label: 'S' },
+  { value: 0, label: "S" },
+  { value: 1, label: "M" },
+  { value: 2, label: "T" },
+  { value: 3, label: "W" },
+  { value: 4, label: "T" },
+  { value: 5, label: "F" },
+  { value: 6, label: "S" },
 ];
 
-const DEFAULT_PARTS: RecurrenceParts = { freq: 'weekly', interval: 1, end: { type: 'never' } };
+const DEFAULT_PARTS: RecurrenceParts = {
+  freq: "weekly",
+  interval: 1,
+  end: { type: "never" },
+};
 
 /** Props for {@link CalRecurrenceEditor}. Names/semantics mirror the Angular inputs/outputs. */
 export interface CalRecurrenceEditorProps {
@@ -40,9 +49,9 @@ function useRecurrenceAdapterOrThrow(): RecurrenceAdapter {
   const { recurrenceAdapter } = useCalendar();
   if (recurrenceAdapter === null) {
     throw new Error(
-      '@ascentsparksoftware/react-calendar: no RecurrenceAdapter. ' +
-        'Wrap <CalRecurrenceEditor> in <CalendarProvider recurrenceAdapter={new RruleRecurrenceAdapter()}> ' +
-        "(adapter from '@ascentsparksoftware/react-calendar/recurrence').",
+      "@skynet-initiative/sky-calendar: no RecurrenceAdapter. " +
+        "Wrap <CalRecurrenceEditor> in <CalendarProvider recurrenceAdapter={new RruleRecurrenceAdapter()}> " +
+        "(adapter from '@skynet-initiative/sky-calendar/recurrence').",
     );
   }
   return recurrenceAdapter;
@@ -54,9 +63,11 @@ function useRecurrenceAdapterOrThrow(): RecurrenceAdapter {
  * `parse`/`serialize`. Theme-agnostic `--cal-*`, fully keyboard-operable.
  * Usable independently of the calendar grid.
  */
-export function CalRecurrenceEditor(props: CalRecurrenceEditorProps): ReactNode {
+export function CalRecurrenceEditor(
+  props: CalRecurrenceEditorProps,
+): ReactNode {
   const recurrence = useRecurrenceAdapterOrThrow();
-  const { rule: ruleProp = '', ruleChange, className } = props;
+  const { rule: ruleProp = "", ruleChange, className } = props;
 
   // Two-way `rule`: internal state, resynced whenever the prop changes.
   const [rule, setRule] = useState(ruleProp);
@@ -69,7 +80,7 @@ export function CalRecurrenceEditor(props: CalRecurrenceEditorProps): ReactNode 
   /** Current parts parsed from the rule (defaults when the rule is empty/invalid). */
   const parts = useMemo<RecurrenceParts>(() => {
     const trimmed = rule.trim();
-    if (trimmed === '') {
+    if (trimmed === "") {
       return DEFAULT_PARTS;
     }
     try {
@@ -105,33 +116,37 @@ export function CalRecurrenceEditor(props: CalRecurrenceEditorProps): ReactNode 
     commit({ ...parts, byWeekday: [...current].sort((a, b) => a - b) });
   };
 
-  const isWeekdaySelected = (day: number): boolean => (parts.byWeekday ?? []).includes(day);
+  const isWeekdaySelected = (day: number): boolean =>
+    (parts.byWeekday ?? []).includes(day);
 
-  const setEndType = (type: RecurrenceEnd['type']): void => {
+  const setEndType = (type: RecurrenceEnd["type"]): void => {
     let end: RecurrenceEnd;
-    if (type === 'count') {
-      end = { type: 'count', count: 10 };
-    } else if (type === 'until') {
+    if (type === "count") {
+      end = { type: "count", count: 10 };
+    } else if (type === "until") {
       const now = Date.now();
-      end = { type: 'until', until: { epochMs: now + 30 * 86_400_000, zone: 'UTC' } };
+      end = {
+        type: "until",
+        until: { epochMs: now + 30 * 86_400_000, zone: "UTC" },
+      };
     } else {
-      end = { type: 'never' };
+      end = { type: "never" };
     }
     commit({ ...parts, end });
   };
 
   const setCount = (event: ChangeEvent<HTMLInputElement>): void => {
     const n = Math.max(1, Number.parseInt(event.target.value, 10) || 1);
-    commit({ ...parts, end: { type: 'count', count: n } });
+    commit({ ...parts, end: { type: "count", count: n } });
   };
 
-  const endType: RecurrenceEnd['type'] = parts.end.type;
-  const countValue: number = parts.end.type === 'count' ? parts.end.count : 10;
+  const endType: RecurrenceEnd["type"] = parts.end.type;
+  const countValue: number = parts.end.type === "count" ? parts.end.count : 10;
   const intervalValue: number = parts.interval;
   const currentFreq: RecurrenceFreq = parts.freq;
 
   return (
-    <div className={`cal-recurrence-editor${className ? ` ${className}` : ''}`}>
+    <div className={`cal-recurrence-editor${className ? ` ${className}` : ""}`}>
       <div className="cal-rec">
         <div className="cal-rec__row">
           <label className="cal-rec__label" htmlFor="cal-rec-freq">
@@ -166,17 +181,24 @@ export function CalRecurrenceEditor(props: CalRecurrenceEditorProps): ReactNode 
           <span className="cal-rec__unit">{currentFreq} interval</span>
         </div>
 
-        {currentFreq === 'weekly' && (
+        {currentFreq === "weekly" && (
           <div className="cal-rec__row">
             <span className="cal-rec__label">On</span>
-            <div className="cal-rec__days" role="group" aria-label="Days of week">
+            <div
+              className="cal-rec__days"
+              role="group"
+              aria-label="Days of week"
+            >
               {WEEKDAYS.map((wd) => (
                 <button
                   key={wd.value}
                   type="button"
-                  className={['cal-rec__day', isWeekdaySelected(wd.value) ? 'cal-rec__day--on' : '']
+                  className={[
+                    "cal-rec__day",
+                    isWeekdaySelected(wd.value) ? "cal-rec__day--on" : "",
+                  ]
                     .filter(Boolean)
-                    .join(' ')}
+                    .join(" ")}
                   aria-pressed={isWeekdaySelected(wd.value)}
                   aria-label={`Weekday ${wd.value}`}
                   onClick={() => toggleWeekday(wd.value)}
@@ -195,8 +217,8 @@ export function CalRecurrenceEditor(props: CalRecurrenceEditorProps): ReactNode 
               <input
                 type="radio"
                 name="cal-rec-end"
-                checked={endType === 'never'}
-                onChange={() => setEndType('never')}
+                checked={endType === "never"}
+                onChange={() => setEndType("never")}
               />
               Never
             </label>
@@ -204,8 +226,8 @@ export function CalRecurrenceEditor(props: CalRecurrenceEditorProps): ReactNode 
               <input
                 type="radio"
                 name="cal-rec-end"
-                checked={endType === 'count'}
-                onChange={() => setEndType('count')}
+                checked={endType === "count"}
+                onChange={() => setEndType("count")}
               />
               After
               <input
@@ -213,7 +235,7 @@ export function CalRecurrenceEditor(props: CalRecurrenceEditorProps): ReactNode 
                 type="number"
                 min={1}
                 value={countValue}
-                disabled={endType !== 'count'}
+                disabled={endType !== "count"}
                 onChange={setCount}
               />
               times
@@ -222,7 +244,7 @@ export function CalRecurrenceEditor(props: CalRecurrenceEditorProps): ReactNode 
         </div>
 
         <p className="cal-rec__preview" aria-live="polite">
-          <code>{rule || '(no recurrence)'}</code>
+          <code>{rule || "(no recurrence)"}</code>
         </p>
       </div>
     </div>

@@ -1,7 +1,10 @@
-import { type CalendarConfig, resolveTimeFormat } from '../core/config/calendar-config';
-import type { DateAdapter } from '../core/date-adapter/date-adapter';
-import type { ZonedDateTime } from '../core/date-adapter/zoned-date-time';
-import type { CalendarEvent } from '../core/model/calendar-event';
+import {
+  type CalendarConfig,
+  resolveTimeFormat,
+} from "../core/config/calendar-config";
+import type { DateAdapter } from "../core/date-adapter/date-adapter";
+import type { ZonedDateTime } from "../core/date-adapter/zoned-date-time";
+import type { CalendarEvent } from "../core/model/calendar-event";
 
 /**
  * Centralises every screen-reader string the calendar emits so they can be
@@ -24,34 +27,44 @@ export class CalCalendarA11y {
   /** Accessible label for a day cell, e.g. "Monday, June 15, 2026". */
   dayLabel(date: ZonedDateTime): string {
     if (this.adapter === null) {
-      return '';
+      return "";
     }
-    return this.adapter.format(date, 'full-date', this.config.locale, this.config.calendarSystem);
+    return this.adapter.format(
+      date,
+      "full-date",
+      this.config.locale,
+      this.config.calendarSystem,
+    );
   }
 
   /** Accessible label for an event chip. Falls back to a generic phrase. */
   eventLabel(event: CalendarEvent): string {
     const title = event.title?.trim();
-    return title && title.length > 0 ? title : 'Untitled event';
+    return title && title.length > 0 ? title : "Untitled event";
   }
 
   /** Label for the "+N more" overflow control. */
   moreLabel(count: number): string {
-    return count === 1 ? '1 more event' : `${count} more events`;
+    return count === 1 ? "1 more event" : `${count} more events`;
   }
 
   /** Label announced when a day is selected. */
   daySelectedLabel(date: ZonedDateTime): string {
     const label = this.dayLabel(date);
-    return label ? `Selected ${label}` : 'Selected day';
+    return label ? `Selected ${label}` : "Selected day";
   }
 
   /** Short time label, e.g. "10:30 AM", used in drag announcements. */
   private timeLabel(instant: ZonedDateTime): string {
     if (this.adapter === null) {
-      return '';
+      return "";
     }
-    return this.adapter.format(instant, resolveTimeFormat(this.config.hour12), this.config.locale, this.config.calendarSystem);
+    return this.adapter.format(
+      instant,
+      resolveTimeFormat(this.config.hour12),
+      this.config.locale,
+      this.config.calendarSystem,
+    );
   }
 
   /** Announced when a keyboard drag grab begins. */
@@ -62,13 +75,13 @@ export class CalCalendarA11y {
   /** Announced as a grabbed event is moved to a new start instant. */
   movedLabel(start: ZonedDateTime): string {
     const time = this.timeLabel(start);
-    return time ? `Moved to ${time}` : 'Moved';
+    return time ? `Moved to ${time}` : "Moved";
   }
 
   /** Announced as a grabbed event's end edge is resized. */
   resizedLabel(end: ZonedDateTime): string {
     const time = this.timeLabel(end);
-    return time ? `Resized, ends ${time}` : 'Resized';
+    return time ? `Resized, ends ${time}` : "Resized";
   }
 
   /** Announced when a keyboard drag is committed. */

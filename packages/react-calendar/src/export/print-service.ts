@@ -1,5 +1,9 @@
-import type { CalendarEvent } from '../index';
-import { eventsToPrintHtml, printDocument, type PrintExportOptions } from './print-export';
+import type { CalendarEvent } from "../index";
+import {
+  eventsToPrintHtml,
+  printDocument,
+  type PrintExportOptions,
+} from "./print-export";
 
 /**
  * Print / print-to-PDF helper. Composes a paginated agenda document
@@ -19,13 +23,19 @@ export class CalPrintService {
    * Print the given events. Returns `true` if the print dialog was triggered
    * (false under SSR / when a popup could not be opened).
    */
-  print(events: readonly CalendarEvent[], options: PrintExportOptions = {}): boolean {
+  print(
+    events: readonly CalendarEvent[],
+    options: PrintExportOptions = {},
+  ): boolean {
     const html = eventsToPrintHtml(events, { ...this.defaults, ...options });
     return printDocument(html);
   }
 
   /** Build the printable HTML without opening a dialog (for preview / tests). */
-  toHtml(events: readonly CalendarEvent[], options: PrintExportOptions = {}): string {
+  toHtml(
+    events: readonly CalendarEvent[],
+    options: PrintExportOptions = {},
+  ): string {
     return eventsToPrintHtml(events, { ...this.defaults, ...options });
   }
 }

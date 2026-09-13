@@ -1,4 +1,4 @@
-import type { CalendarSystem } from '../date-adapter/zoned-date-time';
+import type { CalendarSystem } from "../date-adapter/zoned-date-time";
 
 /**
  * Library-wide defaults, supplied once via the `CalendarProvider` and read by
@@ -31,9 +31,9 @@ export interface CalendarConfig {
 
 /** Built-in defaults; merged with any `withDefaults(...)` overrides. */
 export const DEFAULT_CALENDAR_CONFIG: CalendarConfig = {
-  locale: 'en-US',
+  locale: "en-US",
   weekStartsOn: 0,
-  calendarSystem: 'gregory',
+  calendarSystem: "gregory",
   timezone: null,
   slotMinutes: 30,
   dayStartMinutes: 0,
@@ -50,10 +50,10 @@ export const DEFAULT_CALENDAR_CONFIG: CalendarConfig = {
  */
 export function resolveTimeFormat(hour12: boolean | null): string {
   if (hour12 === true) {
-    return 'h:mm a';
+    return "h:mm a";
   }
   if (hour12 === false) {
-    return 'HH:mm';
+    return "HH:mm";
   }
-  return 'time';
+  return "time";
 }

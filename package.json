@@ -1,30 +1,43 @@
 {
-  "name": "react-calendar-workspace",
+  "name": "@skynet-initiative/sky-calendar-workspace",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
-  "description": "Workspace for @ascentsparksoftware/react-calendar and its docs/demo site",
+  "version": "0.1.0",
+  "packageManager": "bun@1.3.14",
   "license": "MIT",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build -w @ascentsparksoftware/react-calendar && npm run build -w demo",
-    "test": "npm run test -w @ascentsparksoftware/react-calendar",
-    "typecheck": "npm run typecheck -w @ascentsparksoftware/react-calendar",
-    "lint": "eslint .",
-    "e2e": "playwright test"
+    "dev": "concurrently -k -n frontend,backend -c cyan,green \"bun --filter @sky-calendar/frontend dev\" \"bun --filter @sky-calendar/backend dev\"",
+    "build": "bun run build:contracts && bun run build:calendar && bun run build:frontend && bun run build:backend",
+    "build:contracts": "bun --filter @skynet-initiative/sky-calendar-contracts build",
+    "build:calendar": "bun --filter @skynet-initiative/sky-calendar build && bun scripts/check-bundle-size.mjs",
+    "build:frontend": "bun --filter @sky-calendar/frontend build",
+    "build:backend": "bun --filter @sky-calendar/backend build",
+    "typecheck": "bun run build:contracts && bun --filter '*' typecheck",
+    "lint": "eslint \"{apps,packages}/**/*.{ts,tsx}\" --max-warnings=0",
+    "test": "bun run build:contracts && bun --filter @skynet-initiative/sky-calendar test && bun --filter @skynet-initiative/sky-calendar-contracts test && bun --filter @sky-calendar/backend test && bun --filter @sky-calendar/frontend test",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "db:migrate": "bun --filter @sky-calendar/backend db:migrate"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
-    "@playwright/test": "^1.57.0",
-    "eslint": "^9.39.1",
-    "eslint-plugin-react-hooks": "^7.1.0",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.4"
+    "@eslint/js": "10.0.1",
+    "@types/node": "25.9.1",
+    "concurrently": "10.0.5",
+    "eslint": "10.4.1",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.6.0",
+    "prettier": "3.8.3",
+    "eslint-plugin-react-hooks": "7.1.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.60.1"
   },
   "overrides": {
-    "esbuild": "^0.28.1"
+    "esbuild": "0.28.2",
+    "fastify": "5.12.4",
+    "find-my-way": "9.9.0"
   }
 }

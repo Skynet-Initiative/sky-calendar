@@ -1,8 +1,8 @@
-import type { ZonedDateTime } from '../core/date-adapter/zoned-date-time';
-import type { CalendarEvent } from '../core/model/calendar-event';
+import type { ZonedDateTime } from "../core/date-adapter/zoned-date-time";
+import type { CalendarEvent } from "../core/model/calendar-event";
 
 /** What kind of edit a committed {@link EventChange} represents. */
-export type EventChangeKind = 'move' | 'resize' | 'create' | 'inline-edit';
+export type EventChangeKind = "move" | "resize" | "create" | "inline-edit";
 
 /**
  * A committed user edit, emitted (via `eventChanged`) for the host to apply to its

@@ -3,7 +3,8 @@ node_modules/
 
 # Build outputs
 dist/
-apps/demo/dist/
+.next/
+*.tsbuildinfo
 
 # Test artifacts
 coverage/

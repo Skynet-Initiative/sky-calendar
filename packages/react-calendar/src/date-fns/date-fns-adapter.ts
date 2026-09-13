@@ -5,45 +5,50 @@ import {
   startOfDay as fStartOfDay,
   startOfMonth as fStartOfMonth,
   startOfWeek as fStartOfWeek,
-} from 'date-fns';
-import { fromZonedTime, toZonedTime } from 'date-fns-tz';
+} from "date-fns";
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import type {
   CalendarSystem,
   DateAdapter,
   EraFields,
   ZonedDateTime,
-} from '../index';
+} from "../index";
 
 /** date-fns `Day` union (0=Sun … 6=Sat). */
 type WeekDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 /** Semantic format tokens → `Intl.DateTimeFormat` options. Calendar/zone added per call. */
 const PRESETS: Readonly<Record<string, Intl.DateTimeFormatOptions>> = {
-  EEEE: { weekday: 'long' },
-  EEE: { weekday: 'short' },
-  EEEEE: { weekday: 'narrow' },
-  d: { day: 'numeric' },
-  dd: { day: '2-digit' },
-  M: { month: 'numeric' },
-  MM: { month: '2-digit' },
-  MMM: { month: 'short' },
-  MMMM: { month: 'long' },
-  y: { year: 'numeric' },
-  'MMM y': { month: 'short', year: 'numeric' },
-  'MMMM y': { month: 'long', year: 'numeric' },
-  'd MMMM': { day: 'numeric', month: 'long' },
-  'd MMM': { day: 'numeric', month: 'short' },
-  'd MMMM y': { day: 'numeric', month: 'long', year: 'numeric' },
-  'EEE d': { weekday: 'short', day: 'numeric' },
-  'EEE, MMM d': { weekday: 'short', month: 'short', day: 'numeric' },
-  HH: { hour: '2-digit', hourCycle: 'h23' },
-  'HH:mm': { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' },
-  'h a': { hour: 'numeric', hour12: true },
-  'h:mm a': { hour: 'numeric', minute: '2-digit', hour12: true },
+  EEEE: { weekday: "long" },
+  EEE: { weekday: "short" },
+  EEEEE: { weekday: "narrow" },
+  d: { day: "numeric" },
+  dd: { day: "2-digit" },
+  M: { month: "numeric" },
+  MM: { month: "2-digit" },
+  MMM: { month: "short" },
+  MMMM: { month: "long" },
+  y: { year: "numeric" },
+  "MMM y": { month: "short", year: "numeric" },
+  "MMMM y": { month: "long", year: "numeric" },
+  "d MMMM": { day: "numeric", month: "long" },
+  "d MMM": { day: "numeric", month: "short" },
+  "d MMMM y": { day: "numeric", month: "long", year: "numeric" },
+  "EEE d": { weekday: "short", day: "numeric" },
+  "EEE, MMM d": { weekday: "short", month: "short", day: "numeric" },
+  HH: { hour: "2-digit", hourCycle: "h23" },
+  "HH:mm": { hour: "2-digit", minute: "2-digit", hourCycle: "h23" },
+  "h a": { hour: "numeric", hour12: true },
+  "h:mm a": { hour: "numeric", minute: "2-digit", hour12: true },
   // Locale-default time: Intl picks 12- or 24-hour by the locale (e.g. en-US → 1:30 PM,
   // de-DE → 13:30). Used when the calendar's `hour12` config is left unset (null).
-  time: { hour: 'numeric', minute: '2-digit' },
-  'full-date': { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' },
+  time: { hour: "numeric", minute: "2-digit" },
+  "full-date": {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  },
 };
 
 const MS_PER_MINUTE = 60_000;
@@ -120,24 +125,29 @@ export class DateFnsDateAdapter implements DateAdapter {
   getEra(d: ZonedDateTime, system: CalendarSystem): EraFields {
     const parts = new Intl.DateTimeFormat(`en-u-ca-${system}`, {
       timeZone: d.zone,
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric',
-      era: 'short',
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      era: "short",
     }).formatToParts(new Date(d.epochMs));
     const pick = (type: Intl.DateTimeFormatPartTypes): string =>
-      parts.find((p) => p.type === type)?.value ?? '';
-    const year = Number.parseInt(pick('year').replace(/[^\d-]/g, ''), 10);
-    const month = Number.parseInt(pick('month'), 10);
-    const day = Number.parseInt(pick('day'), 10);
-    const eraName = pick('era');
+      parts.find((p) => p.type === type)?.value ?? "";
+    const year = Number.parseInt(pick("year").replace(/[^\d-]/g, ""), 10);
+    const month = Number.parseInt(pick("month"), 10);
+    const day = Number.parseInt(pick("day"), 10);
+    const eraName = pick("era");
     const fields: EraFields = { year, month, day };
     return eraName ? { ...fields, eraName } : fields;
   }
 
   private readonly formatCache = new Map<string, Intl.DateTimeFormat>();
 
-  format(d: ZonedDateTime, pattern: string, locale: string, system: CalendarSystem = 'gregory'): string {
+  format(
+    d: ZonedDateTime,
+    pattern: string,
+    locale: string,
+    system: CalendarSystem = "gregory",
+  ): string {
     const opts = PRESETS[pattern];
     if (opts === undefined) {
       throw new Error(`Unsupported format pattern: "${pattern}"`);
@@ -147,7 +157,11 @@ export class DateFnsDateAdapter implements DateAdapter {
     const key = `${locale}|${d.zone}|${system}|${pattern}`;
     let dtf = this.formatCache.get(key);
     if (dtf === undefined) {
-      dtf = new Intl.DateTimeFormat(locale, { timeZone: d.zone, calendar: system, ...opts });
+      dtf = new Intl.DateTimeFormat(locale, {
+        timeZone: d.zone,
+        calendar: system,
+        ...opts,
+      });
       this.formatCache.set(key, dtf);
     }
     return dtf.format(new Date(d.epochMs));
@@ -157,16 +171,19 @@ export class DateFnsDateAdapter implements DateAdapter {
   private mapWall(d: ZonedDateTime, fn: (wall: Date) => Date): ZonedDateTime {
     const wall = toZonedTime(d.epochMs, d.zone);
     const transformed = fn(wall);
-    return { epochMs: fromZonedTime(transformed, d.zone).getTime(), zone: d.zone };
+    return {
+      epochMs: fromZonedTime(transformed, d.zone).getTime(),
+      zone: d.zone,
+    };
   }
 
   /** Local `YYYY-MM-DD` in the value's zone, for same-day comparison. */
   private ymd(d: ZonedDateTime): string {
-    return new Intl.DateTimeFormat('en-CA', {
+    return new Intl.DateTimeFormat("en-CA", {
       timeZone: d.zone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     }).format(new Date(d.epochMs));
   }
 }

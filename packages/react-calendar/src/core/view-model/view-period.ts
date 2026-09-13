@@ -1,4 +1,4 @@
-import type { ZonedDateTime } from '../date-adapter/zoned-date-time';
+import type { ZonedDateTime } from "../date-adapter/zoned-date-time";
 
 /**
  * The half-open instant window a view currently displays. Emitted to consumers

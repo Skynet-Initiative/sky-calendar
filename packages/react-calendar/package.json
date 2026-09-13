@@ -1,7 +1,7 @@
 {
-  "name": "@ascentsparksoftware/react-calendar",
-  "version": "1.0.1",
-  "description": "Modern, theme-agnostic calendar & scheduler for React — month/week/day, resource timeline, agenda and year views, timezone-correct, with RRULE recurrence, OKLCH theming and a touch-first interaction layer. SSR/Next.js-safe.",
+  "name": "@skynet-initiative/sky-calendar",
+  "version": "0.1.0",
+  "description": "Skynet calendar UI and headless scheduling core: timezone-safe views, RFC 5545 recurrence and accessible interactions.",
   "keywords": [
     "react",
     "react-19",
@@ -20,14 +20,18 @@
     "accessibility"
   ],
   "license": "MIT",
-  "author": "Ascentspark Software Private Limited",
-  "homepage": "https://github.com/ascentspark/react-calendar#readme",
+  "author": "Skynet Initiative; based on work by Ascentspark Software Private Limited",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ascentspark/react-calendar.git"
+    "url": "git+https://github.com/Skynet-Initiative/sky-calendar.git",
+    "directory": "packages/react-calendar"
   },
+  "homepage": "https://github.com/Skynet-Initiative/sky-calendar#readme",
   "bugs": {
-    "url": "https://github.com/ascentspark/react-calendar/issues"
+    "url": "https://github.com/Skynet-Initiative/sky-calendar/issues"
+  },
+  "engines": {
+    "node": ">=22"
   },
   "type": "module",
   "main": "./dist/index.js",
@@ -56,7 +60,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
   ],
   "sideEffects": [
     "*.css"
@@ -64,6 +69,7 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
+    "test:perf": "RUN_PERF_BENCHMARKS=1 vitest run src/core/view-model/perf-bench.spec.ts",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
@@ -71,21 +77,23 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "date-fns": "^4.1.0",
-    "date-fns-tz": "^3.2.0",
-    "rrule": "^2.8.1"
+    "date-fns": "4.1.0",
+    "date-fns-tz": "3.2.0",
+    "rrule": "2.8.1"
   },
   "devDependencies": {
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/react": "^16.3.0",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "fast-check": "^4.9.0",
-    "jsdom": "^26.1.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "tsup": "^8.5.0",
-    "vitest": "^4.0.8"
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.0",
+    "@types/node": "25.9.1",
+    "@types/react": "19.2.16",
+    "@types/react-dom": "19.2.3",
+    "fast-check": "4.9.0",
+    "jsdom": "26.1.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "tsup": "8.5.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
   },
   "publishConfig": {
     "access": "public",

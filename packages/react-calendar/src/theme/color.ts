@@ -16,7 +16,8 @@ const clamp = (value: number, min: number, max: number): number =>
   value < min ? min : value > max ? max : value;
 
 /** Clamp to [0,255] and round to the nearest integer. */
-const clampChannel = (value: number): number => clamp(Math.round(value), 0, 255);
+const clampChannel = (value: number): number =>
+  clamp(Math.round(value), 0, 255);
 
 const HEX_RE = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
@@ -32,7 +33,7 @@ export function parseHex(hex: string): Rgb {
     throw new Error(`Invalid hex color: "${hex}"`);
   }
   const raw = match[1];
-  const body = raw.length === 3 ? raw.replace(/(.)/g, '$1$1') : raw;
+  const body = raw.length === 3 ? raw.replace(/(.)/g, "$1$1") : raw;
   return {
     r: parseInt(body.slice(0, 2), 16),
     g: parseInt(body.slice(2, 4), 16),
@@ -42,7 +43,8 @@ export function parseHex(hex: string): Rgb {
 
 /** Format an {@link Rgb} as a lowercase `#rrggbb` string, clamping/rounding channels. */
 export function formatHex(rgb: Rgb): string {
-  const toHex = (value: number): string => clampChannel(value).toString(16).padStart(2, '0');
+  const toHex = (value: number): string =>
+    clampChannel(value).toString(16).padStart(2, "0");
   return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
 }
 
@@ -54,7 +56,11 @@ const linearize = (channel8: number): number => {
 
 /** WCAG 2.x relative luminance of an sRGB colour, in [0,1]. */
 export function relativeLuminance(rgb: Rgb): number {
-  return 0.2126 * linearize(rgb.r) + 0.7152 * linearize(rgb.g) + 0.0722 * linearize(rgb.b);
+  return (
+    0.2126 * linearize(rgb.r) +
+    0.7152 * linearize(rgb.g) +
+    0.0722 * linearize(rgb.b)
+  );
 }
 
 /** WCAG contrast ratio between two colours, in [1,21]. Symmetric in its arguments. */

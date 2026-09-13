@@ -1,7 +1,15 @@
-import type { CalendarEvent, ZonedDateTime } from '../index';
+import type { CalendarEvent, ZonedDateTime } from "../index";
 
 /** Columns emitted by {@link eventsToExcelXml}, in order. */
-const COLUMNS = ['ID', 'Title', 'Start', 'End', 'All day', 'Status', 'Resources'] as const;
+const COLUMNS = [
+  "ID",
+  "Title",
+  "Start",
+  "End",
+  "All day",
+  "Status",
+  "Resources",
+] as const;
 
 function epochOf(value: Date | ZonedDateTime): number {
   return value instanceof Date ? value.getTime() : value.epochMs;
@@ -10,20 +18,20 @@ function epochOf(value: Date | ZonedDateTime): number {
 /** XML-attribute / text escaping for SpreadsheetML cells. */
 function xmlEsc(value: string): string {
   return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/\r/g, '')
-    .replace(/\n/g, '&#10;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/\r/g, "")
+    .replace(/\n/g, "&#10;");
 }
 
-function cell(value: string, type: 'String' | 'DateTime' = 'String'): string {
+function cell(value: string, type: "String" | "DateTime" = "String"): string {
   return `<Cell><Data ss:Type="${type}">${xmlEsc(value)}</Data></Cell>`;
 }
 
 function row(cells: readonly string[]): string {
-  return `<Row>${cells.join('')}</Row>`;
+  return `<Row>${cells.join("")}</Row>`;
 }
 
 /**
@@ -37,15 +45,16 @@ export function eventsToExcelXml(events: readonly CalendarEvent[]): string {
   const header = row(COLUMNS.map((c) => cell(c)));
   const dataRows = events.map((event) => {
     const start = new Date(epochOf(event.start)).toISOString();
-    const end = event.end === undefined ? '' : new Date(epochOf(event.end)).toISOString();
+    const end =
+      event.end === undefined ? "" : new Date(epochOf(event.end)).toISOString();
     return row([
       cell(event.id),
-      cell(event.title ?? ''),
-      cell(start, 'DateTime'),
-      end === '' ? cell('') : cell(end, 'DateTime'),
-      cell(event.allDay === true ? 'Yes' : 'No'),
-      cell(event.status ?? ''),
-      cell((event.resourceIds ?? []).join('; ')),
+      cell(event.title ?? ""),
+      cell(start, "DateTime"),
+      end === "" ? cell("") : cell(end, "DateTime"),
+      cell(event.allDay === true ? "Yes" : "No"),
+      cell(event.status ?? ""),
+      cell((event.resourceIds ?? []).join("; ")),
     ]);
   });
 
@@ -55,7 +64,7 @@ export function eventsToExcelXml(events: readonly CalendarEvent[]): string {
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
  <Worksheet ss:Name="Events">
   <Table>
-   ${[header, ...dataRows].join('\n   ')}
+   ${[header, ...dataRows].join("\n   ")}
   </Table>
  </Worksheet>
 </Workbook>`;

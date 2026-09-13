@@ -1,4 +1,4 @@
-import type { WorkingHours } from './working-hours';
+import type { WorkingHours } from "./working-hours";
 
 /**
  * A schedulable entity (technician, room, vehicle, …) shown as a lane in the

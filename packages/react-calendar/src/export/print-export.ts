@@ -1,4 +1,4 @@
-import type { CalendarEvent, ZonedDateTime } from '../index';
+import type { CalendarEvent, ZonedDateTime } from "../index";
 
 /** Options for {@link eventsToPrintHtml}. */
 export interface PrintExportOptions {
@@ -19,10 +19,10 @@ function epochOf(value: Date | ZonedDateTime): number {
 /** Minimal HTML-entity escaping for text interpolated into the document. */
 function esc(value: string): string {
   return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /**
@@ -52,27 +52,27 @@ export function eventsToPrintHtml(
   events: readonly CalendarEvent[],
   options: PrintExportOptions = {},
 ): string {
-  const title = options.title ?? 'Calendar';
-  const locale = options.locale ?? 'en-US';
+  const title = options.title ?? "Calendar";
+  const locale = options.locale ?? "en-US";
   const dateFmt = new Intl.DateTimeFormat(locale, {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
     ...(options.timeZone !== undefined ? { timeZone: options.timeZone } : {}),
   });
   const timeOpts: Intl.DateTimeFormatOptions = {
-    hour: 'numeric',
-    minute: '2-digit',
+    hour: "numeric",
+    minute: "2-digit",
     ...(options.timeZone !== undefined ? { timeZone: options.timeZone } : {}),
     ...(options.hour12 !== undefined ? { hour12: options.hour12 } : {}),
   };
   const timeFmt = new Intl.DateTimeFormat(locale, timeOpts);
   // Group key = the locale/zone day label; keeps DST-correct day boundaries.
-  const dayKeyFmt = new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+  const dayKeyFmt = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     ...(options.timeZone !== undefined ? { timeZone: options.timeZone } : {}),
   });
 
@@ -104,17 +104,17 @@ export function eventsToPrintHtml(
       .map((event) => {
         const time =
           event.allDay === true
-            ? 'All day'
+            ? "All day"
             : event.end === undefined
               ? timeFmt.format(new Date(epochOf(event.start)))
               : `${timeFmt.format(new Date(epochOf(event.start)))} – ${timeFmt.format(
                   new Date(epochOf(event.end)),
                 )}`;
-        const titleCell = esc(event.title ?? '(untitled)');
-        const status = event.status === undefined ? '' : esc(event.status);
+        const titleCell = esc(event.title ?? "(untitled)");
+        const status = event.status === undefined ? "" : esc(event.status);
         return `<tr><td class="cal-print__time">${esc(time)}</td><td>${titleCell}</td><td>${status}</td></tr>`;
       })
-      .join('');
+      .join("");
     sections.push(
       `<section><h2>${esc(group.label)}</h2><table><tbody>${rows}</tbody></table></section>`,
     );
@@ -123,7 +123,7 @@ export function eventsToPrintHtml(
   const body =
     sections.length === 0
       ? '<p class="cal-print__empty">No events.</p>'
-      : sections.join('\n');
+      : sections.join("\n");
 
   return `<!DOCTYPE html>
 <html lang="${esc(locale)}">
@@ -148,14 +148,19 @@ ${body}
  */
 export function printDocument(
   html: string,
-  target?: { document: Document; focus(): void; print(): void; close?: () => void } | null,
+  target?: {
+    document: Document;
+    focus(): void;
+    print(): void;
+    close?: () => void;
+  } | null,
 ): boolean {
   const win =
     target !== undefined
       ? target
-      : typeof window === 'undefined'
+      : typeof window === "undefined"
         ? null
-        : (window.open('', '_blank') as Window | null);
+        : (window.open("", "_blank") as Window | null);
   // `window.open` returns null when a popup blocker (or SSR) prevents the window.
   if (win === null) {
     return false;
@@ -164,7 +169,7 @@ export function printDocument(
   // Trusted-Types / strict-CSP safe: parse the HTML off-document with DOMParser (which
   // neither executes scripts nor is a Trusted-Types sink) and adopt the parsed tree,
   // instead of `document.write()` / `innerHTML=` which throw a TypeError under strict CSP.
-  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const parsed = new DOMParser().parseFromString(html, "text/html");
   const root = doc.documentElement;
   if (root === null) {
     doc.appendChild(doc.importNode(parsed.documentElement, true));

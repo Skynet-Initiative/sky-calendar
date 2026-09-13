@@ -1,24 +1,24 @@
-import { useEffect, useMemo, type RefObject } from 'react';
-import { useCalendar } from '../../provider/calendar-context';
-import { applyTheme } from '../../theme/apply-theme';
-import { deriveTheme, type CalThemeMode } from '../../theme/derive-theme';
-import type { CalendarEvent } from '../../core/model/calendar-event';
-import type { DateAdapter } from '../../core/date-adapter/date-adapter';
-import type { ZonedDateTime } from '../../core/date-adapter/zoned-date-time';
-import type { RecurrenceAdapter } from '../../core/recurrence/recurrence-adapter';
-import { expandRecurringEvents } from '../../core/recurrence/expand-recurring-events';
-import { sanitizeStatusKey } from '../../theme/tokens';
+import { useEffect, useMemo, type RefObject } from "react";
+import { useCalendar } from "../../provider/calendar-context";
+import { applyTheme } from "../../theme/apply-theme";
+import { deriveTheme, type CalThemeMode } from "../../theme/derive-theme";
+import type { CalendarEvent } from "../../core/model/calendar-event";
+import type { DateAdapter } from "../../core/date-adapter/date-adapter";
+import type { ZonedDateTime } from "../../core/date-adapter/zoned-date-time";
+import type { RecurrenceAdapter } from "../../core/recurrence/recurrence-adapter";
+import { expandRecurringEvents } from "../../core/recurrence/expand-recurring-events";
+import { sanitizeStatusKey } from "../../theme/tokens";
 
-export const FALLBACK_BASE = '#ffffff';
-export const FALLBACK_ACCENT = '#3b82f6';
+export const FALLBACK_BASE = "#ffffff";
+export const FALLBACK_ACCENT = "#3b82f6";
 
 /** Resolve the host timezone, SSR-safe (falls back to UTC off the browser). */
 export function hostZone(): string {
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return tz && tz.length > 0 ? tz : 'UTC';
+    return tz && tz.length > 0 ? tz : "UTC";
   } catch {
-    return 'UTC';
+    return "UTC";
   }
 }
 
@@ -41,21 +41,35 @@ export interface CalThemeProps {
  * Bridged tokens from the provider's `tokenBridge` win over derived values.
  * Effect-based: SSR-safe and StrictMode-idempotent (re-applying is pure overwrite).
  */
-export function useHostTheme(host: RefObject<HTMLElement | null>, props: CalThemeProps): void {
+export function useHostTheme(
+  host: RefObject<HTMLElement | null>,
+  props: CalThemeProps,
+): void {
   const { tokenBridge } = useCalendar();
   const {
     baseColor = FALLBACK_BASE,
     accentColor = FALLBACK_ACCENT,
-    themeMode = 'light',
+    themeMode = "light",
     statusColors,
     accentInk = null,
   } = props;
 
   const theme = useMemo(() => {
     try {
-      return deriveTheme(baseColor, accentColor, themeMode, statusColors ?? {}, accentInk);
+      return deriveTheme(
+        baseColor,
+        accentColor,
+        themeMode,
+        statusColors ?? {},
+        accentInk,
+      );
     } catch {
-      return deriveTheme(FALLBACK_BASE, FALLBACK_ACCENT, themeMode, statusColors ?? {});
+      return deriveTheme(
+        FALLBACK_BASE,
+        FALLBACK_ACCENT,
+        themeMode,
+        statusColors ?? {},
+      );
     }
   }, [baseColor, accentColor, themeMode, statusColors, accentInk]);
 
@@ -73,7 +87,11 @@ export function useHostTheme(host: RefObject<HTMLElement | null>, props: CalThem
 export function useViewPeriodChanged(
   period: { readonly start: ZonedDateTime; readonly end: ZonedDateTime },
   zone: string,
-  viewPeriodChanged?: (period: { start: ZonedDateTime; end: ZonedDateTime; zone: string }) => void,
+  viewPeriodChanged?: (period: {
+    start: ZonedDateTime;
+    end: ZonedDateTime;
+    zone: string;
+  }) => void,
 ): void {
   const startMs = period.start.epochMs;
   const endMs = period.end.epochMs;
@@ -95,28 +113,43 @@ export function expandForWindow<TMeta>(
   windowEnd: ZonedDateTime,
   zone: string,
 ): readonly CalendarEvent<TMeta>[] {
-  if (recurrence === null || !events.some((e) => e.recurrenceRule !== undefined)) {
+  if (
+    recurrence === null ||
+    !events.some((e) => e.recurrenceRule !== undefined)
+  ) {
     return events;
   }
-  return expandRecurringEvents<TMeta>(events, { recurrence, dates, windowStart, windowEnd, zone });
+  return expandRecurringEvents<TMeta>(events, {
+    recurrence,
+    dates,
+    windowStart,
+    windowEnd,
+    zone,
+  });
 }
 
 /** Status-tinted background/on-colour pair for an event, falling back to the accent. */
-export function eventColors(status: string | undefined): { bg: string; fg: string } {
-  const key = status !== undefined ? sanitizeStatusKey(status) : '';
+export function eventColors(status: string | undefined): {
+  bg: string;
+  fg: string;
+} {
+  const key = status !== undefined ? sanitizeStatusKey(status) : "";
   return {
-    bg: key !== '' ? `var(--cal-event-${key}, var(--cal-accent))` : 'var(--cal-accent)',
+    bg:
+      key !== ""
+        ? `var(--cal-event-${key}, var(--cal-accent))`
+        : "var(--cal-accent)",
     fg:
-      key !== ''
+      key !== ""
         ? `var(--cal-event-${key}-ink, var(--cal-accent-ink))`
-        : 'var(--cal-accent-ink)',
+        : "var(--cal-accent-ink)",
   };
 }
 
 /** Status colour token for a leading dot / band, falling back to the accent. */
 export function eventDotColor(status: string | undefined): string {
   if (status === undefined) {
-    return 'var(--cal-accent)';
+    return "var(--cal-accent)";
   }
   return `var(--cal-event-${sanitizeStatusKey(status)}, var(--cal-accent))`;
 }
@@ -127,7 +160,7 @@ export function isRtl(el: HTMLElement | null): boolean {
     return false;
   }
   try {
-    return getComputedStyle(el).direction === 'rtl';
+    return getComputedStyle(el).direction === "rtl";
   } catch {
     return false;
   }

@@ -1,6 +1,10 @@
-import type { DateAdapter } from '../date-adapter/date-adapter';
-import type { AgendaDay, AgendaViewArgs, AgendaViewModel } from './agenda-view-model';
-import type { ViewPeriod } from './view-period';
+import type { DateAdapter } from "../date-adapter/date-adapter";
+import type {
+  AgendaDay,
+  AgendaViewArgs,
+  AgendaViewModel,
+} from "./agenda-view-model";
+import type { ViewPeriod } from "./view-period";
 
 /**
  * Build the agenda (list) view-model: `days` consecutive days from `viewDate`,
@@ -20,9 +24,15 @@ export function buildAgendaView<TMeta = unknown>(
     const s = adapter.toZoned(event.start, zone);
     const startDay = adapter.startOfDay(s);
     const e = event.end === undefined ? s : adapter.toZoned(event.end, zone);
-    const lastInstant = adapter.differenceInMinutes(e, s) > 0 ? adapter.addMinutes(e, -1) : s;
+    const lastInstant =
+      adapter.differenceInMinutes(e, s) > 0 ? adapter.addMinutes(e, -1) : s;
     const lastDay = adapter.startOfDay(lastInstant);
-    return { event, startMs: s.epochMs, startDayMs: startDay.epochMs, lastDayMs: lastDay.epochMs };
+    return {
+      event,
+      startMs: s.epochMs,
+      startDayMs: startDay.epochMs,
+      lastDayMs: lastDay.epochMs,
+    };
   });
 
   const days: AgendaDay<TMeta>[] = [];

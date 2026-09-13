@@ -1,23 +1,23 @@
-import { useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 
 /** A small, sensible default IANA zone list when the host supplies none. */
 const DEFAULT_ZONES: readonly string[] = [
-  'UTC',
-  'America/Los_Angeles',
-  'America/Denver',
-  'America/Chicago',
-  'America/New_York',
-  'America/Sao_Paulo',
-  'Europe/London',
-  'Europe/Paris',
-  'Europe/Berlin',
-  'Europe/Moscow',
-  'Asia/Dubai',
-  'Asia/Kolkata',
-  'Asia/Singapore',
-  'Asia/Shanghai',
-  'Asia/Tokyo',
-  'Australia/Sydney',
+  "UTC",
+  "America/Los_Angeles",
+  "America/Denver",
+  "America/Chicago",
+  "America/New_York",
+  "America/Sao_Paulo",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Moscow",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Asia/Shanghai",
+  "Asia/Tokyo",
+  "Australia/Sydney",
 ];
 
 /**
@@ -76,11 +76,11 @@ export interface CalTimezonePickerProps {
  */
 export function CalTimezonePicker(props: CalTimezonePickerProps): ReactNode {
   const {
-    value: valueProp = 'UTC',
+    value: valueProp = "UTC",
     valueChange,
     zones = null,
-    locale = 'en-US',
-    label = 'Time zone',
+    locale = "en-US",
+    label = "Time zone",
     className,
   } = props;
 
@@ -96,7 +96,7 @@ export function CalTimezonePicker(props: CalTimezonePickerProps): ReactNode {
     const list = zones ?? DEFAULT_ZONES;
     return list.map((id) => ({
       id,
-      label: `${id.replace(/_/g, ' ')} (${offsetLabel(id, locale)})`,
+      label: `${id.replace(/_/g, " ")} (${offsetLabel(id, locale)})`,
     }));
   }, [zones, locale]);
 
@@ -107,13 +107,18 @@ export function CalTimezonePicker(props: CalTimezonePickerProps): ReactNode {
   };
 
   return (
-    <div className={`cal-timezone-picker${className ? ` ${className}` : ''}`}>
+    <div className={`cal-timezone-picker${className ? ` ${className}` : ""}`}>
       <style href="cal-timezone-picker" precedence="default">
         {STYLES}
       </style>
       <label className="cal-tzp">
         <span className="cal-tzp__label">{label}</span>
-        <select className="cal-tzp__select" aria-label={label} value={value} onChange={onChange}>
+        <select
+          className="cal-tzp__select"
+          aria-label={label}
+          value={value}
+          onChange={onChange}
+        >
           {options.map((z) => (
             <option key={z.id} value={z.id}>
               {z.label}
@@ -130,10 +135,10 @@ function offsetLabel(zone: string, locale: string): string {
   try {
     const parts = new Intl.DateTimeFormat(locale, {
       timeZone: zone,
-      timeZoneName: 'shortOffset',
+      timeZoneName: "shortOffset",
     }).formatToParts(new Date());
-    return parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
+    return parts.find((p) => p.type === "timeZoneName")?.value ?? "";
   } catch {
-    return '';
+    return "";
   }
 }

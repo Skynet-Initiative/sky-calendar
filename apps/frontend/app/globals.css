@@ -7,11 +7,26 @@ body {
   font-family:
     system-ui,
     -apple-system,
-    'Segoe UI',
+    "Segoe UI",
     Roboto,
     sans-serif;
   background: #f5f6f8;
   color: #16181d;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
 }
 
 .demo {
@@ -22,6 +37,27 @@ body {
   flex-direction: column;
   gap: 1rem;
   min-height: 100vh;
+}
+
+@media (max-width: 40rem) {
+  .demo {
+    padding: 0.5rem;
+  }
+
+  .demo__bar h1 {
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
 }
 
 .demo__bar {
@@ -46,7 +82,7 @@ body {
   cursor: pointer;
 }
 
-.demo__bar button[data-active='true'] {
+.demo__bar button[data-active="true"] {
   background: #16181d;
   color: #fff;
   border-color: #16181d;

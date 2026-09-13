@@ -13,10 +13,10 @@ Closes #
 
 ## Checklist
 
-- [ ] Tests pass (`npm test`) under `TZ=UTC` and `TZ=America/New_York`
-- [ ] Lint passes (`npm run lint`)
-- [ ] Build succeeds (`npm run build`)
+- [ ] Tests pass (`bun run test`) under `TZ=UTC` and `TZ=America/New_York`
+- [ ] Lint passes (`bun run lint`)
+- [ ] Build succeeds (`bun run build`)
 - [ ] Tests added/updated for this change
 - [ ] Public API and docs updated (if the surface changed)
-- [ ] `CHANGELOG.md` updated under `[Unreleased]`
-- [ ] No `innerHTML` of caller content; zoneless-safe; OnPush
+- [ ] Documentation and third-party notices remain accurate
+- [ ] No secret, personal data, unsafe HTML or unvalidated cross-workspace access

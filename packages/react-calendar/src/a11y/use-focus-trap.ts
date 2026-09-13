@@ -1,7 +1,7 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect, type RefObject } from "react";
 
 const FOCUSABLE_SELECTOR =
-  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),' +
+  "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled])," +
   'textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 /**
@@ -24,7 +24,10 @@ const FOCUSABLE_SELECTOR =
  * under StrictMode's double invoke: each setup snapshots the previously focused
  * element and its cleanup restores it.
  */
-export function useFocusTrap(ref: RefObject<HTMLElement | null>, enabled = true): void {
+export function useFocusTrap(
+  ref: RefObject<HTMLElement | null>,
+  enabled = true,
+): void {
   useEffect(() => {
     const host = ref.current;
     if (!enabled || host === null) {
@@ -32,7 +35,8 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, enabled = true)
     }
 
     const doc = host.ownerDocument;
-    const previouslyFocused = doc.activeElement instanceof HTMLElement ? doc.activeElement : null;
+    const previouslyFocused =
+      doc.activeElement instanceof HTMLElement ? doc.activeElement : null;
 
     const focusable = (): HTMLElement[] =>
       Array.from(host.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
@@ -40,7 +44,7 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, enabled = true)
     (focusable()[0] ?? host).focus();
 
     const onKeydown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Tab') {
+      if (event.key !== "Tab") {
         return;
       }
       const els = focusable();
@@ -61,9 +65,9 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, enabled = true)
       }
     };
 
-    host.addEventListener('keydown', onKeydown);
+    host.addEventListener("keydown", onKeydown);
     return () => {
-      host.removeEventListener('keydown', onKeydown);
+      host.removeEventListener("keydown", onKeydown);
       previouslyFocused?.focus();
     };
   }, [ref, enabled]);

@@ -1,5 +1,8 @@
-import type { CalendarEvent } from '../model/calendar-event';
-import type { CalendarSystem, ZonedDateTime } from '../date-adapter/zoned-date-time';
+import type { CalendarEvent } from "../model/calendar-event";
+import type {
+  CalendarSystem,
+  ZonedDateTime,
+} from "../date-adapter/zoned-date-time";
 
 /** A compact day cell in a year-view mini-month. */
 export interface YearDay {

@@ -159,14 +159,13 @@
   position: relative;
   block-size: var(--cal-tl-lane-extent);
   border-block-end: 1px solid var(--cal-grid-line);
-  background:
-    repeating-linear-gradient(
-      90deg,
-      transparent 0,
-      transparent calc(var(--cal-tl-hour-w, 60px) - 1px),
-      var(--cal-grid-line) calc(var(--cal-tl-hour-w, 60px) - 1px),
-      var(--cal-grid-line) var(--cal-tl-hour-w, 60px)
-    );
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(var(--cal-tl-hour-w, 60px) - 1px),
+    var(--cal-grid-line) calc(var(--cal-tl-hour-w, 60px) - 1px),
+    var(--cal-grid-line) var(--cal-tl-hour-w, 60px)
+  );
   cursor: pointer;
 }
 

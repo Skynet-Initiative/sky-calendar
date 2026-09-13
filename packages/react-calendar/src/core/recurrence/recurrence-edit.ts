@@ -1,7 +1,7 @@
-import type { DateAdapter } from '../date-adapter/date-adapter';
-import type { ZonedDateTime } from '../date-adapter/zoned-date-time';
-import type { CalendarEvent } from '../model/calendar-event';
-import type { RecurrenceAdapter } from './recurrence-adapter';
+import type { DateAdapter } from "../date-adapter/date-adapter";
+import type { ZonedDateTime } from "../date-adapter/zoned-date-time";
+import type { CalendarEvent } from "../model/calendar-event";
+import type { RecurrenceAdapter } from "./recurrence-adapter";
 
 /**
  * "Edit/Delete this occurrence": return the series event with `occurrenceStart`
@@ -36,13 +36,20 @@ export function splitSeriesAt<TMeta = unknown>(
   occurrenceStart: ZonedDateTime,
   ctx: { readonly recurrence: RecurrenceAdapter; readonly dates: DateAdapter },
 ): SeriesSplit<TMeta> {
-  const rule = series.recurrenceRule ?? '';
+  const rule = series.recurrenceRule ?? "";
   const parts = ctx.recurrence.parse(rule);
   const untilInstant = ctx.dates.addMinutes(occurrenceStart, -1);
-  const headParts = { ...parts, end: { type: 'until' as const, until: untilInstant } };
+  const headParts = {
+    ...parts,
+    end: { type: "until" as const, until: untilInstant },
+  };
   const headRule = ctx.recurrence.serialize(headParts);
   const head: CalendarEvent<TMeta> = { ...series, recurrenceRule: headRule };
   // The tail keeps the original cadence but no explicit end unless the original had a count.
   const tailParts = { ...parts };
-  return { head, tailRule: ctx.recurrence.serialize(tailParts), tailStart: occurrenceStart };
+  return {
+    head,
+    tailRule: ctx.recurrence.serialize(tailParts),
+    tailStart: occurrenceStart,
+  };
 }

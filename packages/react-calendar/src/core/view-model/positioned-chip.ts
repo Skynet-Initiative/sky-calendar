@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../model/calendar-event';
+import type { CalendarEvent } from "../model/calendar-event";
 
 /**
  * Immutable geometry for one event's segment within a single week row of the

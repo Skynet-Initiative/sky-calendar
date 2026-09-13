@@ -1,4 +1,4 @@
-import type { CalendarEvent, ZonedDateTime } from '../index';
+import type { CalendarEvent, ZonedDateTime } from "../index";
 
 /** Options for {@link eventsToIcs}. */
 export interface IcsExportOptions {
@@ -8,7 +8,7 @@ export interface IcsExportOptions {
   readonly prodId?: string;
 }
 
-const CRLF = '\r\n';
+const CRLF = "\r\n";
 
 /** Absolute epoch ms of a `Date | ZonedDateTime`. */
 function epochOf(value: Date | ZonedDateTime): number {
@@ -22,27 +22,30 @@ function zoneOf(value: Date | ZonedDateTime, fallback: string): string {
 
 /** UTC timestamp form `YYYYMMDDTHHMMSSZ`. */
 function utcStamp(epochMs: number): string {
-  return new Date(epochMs).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return new Date(epochMs)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}/, "");
 }
 
 /** Local `YYYYMMDD` date in `zone` (for all-day VALUE=DATE). */
 function localDate(epochMs: number, zone: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
+  const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: zone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).format(new Date(epochMs));
-  return parts.replace(/-/g, '');
+  return parts.replace(/-/g, "");
 }
 
 /** Escape a value per RFC 5545 (text fields). */
 function esc(value: string): string {
   return value
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
 }
 
 /** Fold long content lines to 75 octets per RFC 5545 §3.1. */
@@ -70,20 +73,20 @@ export function eventsToIcs(
   events: readonly CalendarEvent[],
   options: IcsExportOptions,
 ): string {
-  const prodId = options.prodId ?? '-//Ascentspark//react-calendar//EN';
+  const prodId = options.prodId ?? "-//Skynet Initiative//Sky Calendar//EN";
   const lines: string[] = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    `PRODID:${prodId}`,
-    'CALSCALE:GREGORIAN',
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    `PRODID:${esc(prodId)}`,
+    "CALSCALE:GREGORIAN",
   ];
 
   for (const event of events) {
     const startMs = epochOf(event.start);
     const endValue = event.end ?? event.start;
     const endMs = epochOf(endValue);
-    lines.push('BEGIN:VEVENT');
-    lines.push(fold(`UID:${esc(event.id)}@react-calendar`));
+    lines.push("BEGIN:VEVENT");
+    lines.push(fold(`UID:${esc(event.id)}@calendar.skynet-initiative.com`));
     lines.push(`DTSTAMP:${utcStamp(startMs)}`);
     if (event.allDay === true) {
       const zone = zoneOf(event.start, options.zone);
@@ -93,18 +96,19 @@ export function eventsToIcs(
       lines.push(`DTSTART:${utcStamp(startMs)}`);
       lines.push(`DTEND:${utcStamp(endMs)}`);
     }
-    if (event.title !== undefined && event.title !== '') {
+    if (event.title !== undefined && event.title !== "") {
       lines.push(fold(`SUMMARY:${esc(event.title)}`));
     }
-    if (event.recurrenceRule !== undefined && event.recurrenceRule !== '') {
-      lines.push(`RRULE:${event.recurrenceRule.replace(/^RRULE:/, '')}`);
+    if (event.recurrenceRule !== undefined && event.recurrenceRule !== "") {
+      const rule = event.recurrenceRule.replace(/^RRULE:/, "");
+      if (/^[A-Z0-9=;,\-+]+$/.test(rule)) lines.push(`RRULE:${rule}`);
     }
     if (event.status !== undefined) {
       lines.push(fold(`CATEGORIES:${esc(event.status)}`));
     }
-    lines.push('END:VEVENT');
+    lines.push("END:VEVENT");
   }
 
-  lines.push('END:VCALENDAR');
+  lines.push("END:VCALENDAR");
   return lines.join(CRLF) + CRLF;
 }

@@ -1,13 +1,13 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext } from "react";
 import {
   DEFAULT_CALENDAR_CONFIG,
   type CalendarConfig,
-} from '../core/config/calendar-config';
-import type { DateAdapter } from '../core/date-adapter/date-adapter';
-import type { RecurrenceAdapter } from '../core/recurrence/recurrence-adapter';
-import type { CalTokenBridge } from '../theme/apply-theme';
-import { CalCalendarIntl } from '../i18n/cal-calendar-intl';
-import { CalCalendarA11y } from '../a11y/cal-calendar-a11y';
+} from "../core/config/calendar-config";
+import type { DateAdapter } from "../core/date-adapter/date-adapter";
+import type { RecurrenceAdapter } from "../core/recurrence/recurrence-adapter";
+import type { CalTokenBridge } from "../theme/apply-theme";
+import { CalCalendarIntl } from "../i18n/cal-calendar-intl";
+import { CalCalendarA11y } from "../a11y/cal-calendar-a11y";
 
 /** Tuning for list/range virtualization (currently the timeline's resource rows). */
 export interface CalVirtualizationOptions {
@@ -63,7 +63,8 @@ const DEFAULT_CONTEXT: CalendarContextValue = {
  * defaults when no provider is present, but need a {@link CalendarProvider}
  * with a date adapter to do anything useful.
  */
-export const CalendarContext = createContext<CalendarContextValue>(DEFAULT_CONTEXT);
+export const CalendarContext =
+  createContext<CalendarContextValue>(DEFAULT_CONTEXT);
 
 /** The nearest provider's resolved context (or the built-in defaults). */
 export function useCalendar(): CalendarContextValue {
@@ -83,9 +84,9 @@ export function useDateAdapter(): DateAdapter {
   const { dateAdapter } = useContext(CalendarContext);
   if (dateAdapter === null) {
     throw new Error(
-      '@ascentsparksoftware/react-calendar: no DateAdapter. ' +
-        'Wrap your views in <CalendarProvider dateAdapter={new DateFnsDateAdapter()}> ' +
-        "(adapter from '@ascentsparksoftware/react-calendar/date-fns').",
+      "@skynet-initiative/sky-calendar: no DateAdapter. " +
+        "Wrap your views in <CalendarProvider dateAdapter={new DateFnsDateAdapter()}> " +
+        "(adapter from '@skynet-initiative/sky-calendar/date-fns').",
     );
   }
   return dateAdapter;

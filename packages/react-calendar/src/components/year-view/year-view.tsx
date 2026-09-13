@@ -5,20 +5,23 @@ import {
   useState,
   type KeyboardEvent,
   type ReactNode,
-} from 'react';
-import type { CalendarSystem, ZonedDateTime } from '../../core/date-adapter/zoned-date-time';
-import type { CalendarEvent } from '../../core/model/calendar-event';
-import { buildYearView } from '../../core/view-model/build-year-view';
-import type { YearDay } from '../../core/view-model/year-view-model';
-import { useCalendar, useDateAdapter } from '../../provider/calendar-context';
-import type { CalThemeMode } from '../../theme/derive-theme';
+} from "react";
+import type {
+  CalendarSystem,
+  ZonedDateTime,
+} from "../../core/date-adapter/zoned-date-time";
+import type { CalendarEvent } from "../../core/model/calendar-event";
+import { buildYearView } from "../../core/view-model/build-year-view";
+import type { YearDay } from "../../core/view-model/year-view-model";
+import { useCalendar, useDateAdapter } from "../../provider/calendar-context";
+import type { CalThemeMode } from "../../theme/derive-theme";
 import {
   expandForWindow,
   hostZone,
   isRtl,
   useHostTheme,
   useViewPeriodChanged,
-} from '../internal/host';
+} from "../internal/host";
 
 /** Props for {@link CalYearView}. Names/semantics mirror the Angular inputs/outputs. */
 export interface CalYearViewProps<TMeta = unknown> {
@@ -79,7 +82,9 @@ function density(day: YearDay): number {
  * density, "today" marking, theme-agnostic `--cal-*` styling, ARIA grid
  * semantics, roving-tabindex keyboard navigation, and drill-down to a day.
  */
-export function CalYearView<TMeta = unknown>(props: CalYearViewProps<TMeta>): ReactNode {
+export function CalYearView<TMeta = unknown>(
+  props: CalYearViewProps<TMeta>,
+): ReactNode {
   const adapter = useDateAdapter();
   const { config, recurrenceAdapter, a11y } = useCalendar();
   const host = useRef<HTMLDivElement>(null);
@@ -110,7 +115,10 @@ export function CalYearView<TMeta = unknown>(props: CalYearViewProps<TMeta>): Re
     // is present. A zero-event probe supplies the year's day window (events
     // don't affect the grid), avoiding the probe entirely when nothing recurs.
     let expanded: readonly CalendarEvent<TMeta>[] = events;
-    if (recurrenceAdapter !== null && events.some((e) => e.recurrenceRule !== undefined)) {
+    if (
+      recurrenceAdapter !== null &&
+      events.some((e) => e.recurrenceRule !== undefined)
+    ) {
       const probe = buildYearView<TMeta>(adapter, {
         viewDate: anchor,
         events: [],
@@ -137,7 +145,9 @@ export function CalYearView<TMeta = unknown>(props: CalYearViewProps<TMeta>): Re
       weekStartsOn: resolvedWeekStart,
       locale: resolvedLocale,
       calendarSystem: resolvedSystem,
-      ...(today !== null ? { today: adapter.toZoned(today, resolvedZone) } : {}),
+      ...(today !== null
+        ? { today: adapter.toZoned(today, resolvedZone) }
+        : {}),
     });
   }, [
     adapter,
@@ -172,7 +182,10 @@ export function CalYearView<TMeta = unknown>(props: CalYearViewProps<TMeta>): Re
   );
 
   const effectiveFocus = useMemo(() => {
-    if (focusedEpoch !== null && navDays.some((d) => d.date.epochMs === focusedEpoch)) {
+    if (
+      focusedEpoch !== null &&
+      navDays.some((d) => d.date.epochMs === focusedEpoch)
+    ) {
       return focusedEpoch;
     }
     const todayDay = navDays.find((d) => d.isToday);
@@ -187,22 +200,25 @@ export function CalYearView<TMeta = unknown>(props: CalYearViewProps<TMeta>): Re
     }
     return month.days
       .slice(0, 7)
-      .map((d) => adapter.format(d.date, 'EEEEE', resolvedLocale, resolvedSystem));
+      .map((d) =>
+        adapter.format(d.date, "EEEEE", resolvedLocale, resolvedSystem),
+      );
   }, [adapter, viewModel, resolvedLocale, resolvedSystem]);
 
   const dayNumber = (day: YearDay): string =>
-    adapter.format(day.date, 'd', resolvedLocale, resolvedSystem);
+    adapter.format(day.date, "d", resolvedLocale, resolvedSystem);
 
   const dayLabel = (day: YearDay): string => {
     const base = a11y.dayLabel(day.date);
     if (day.eventCount === 0) {
       return base;
     }
-    const noun = day.eventCount === 1 ? 'event' : 'events';
+    const noun = day.eventCount === 1 ? "event" : "events";
     return `${base}, ${day.eventCount} ${noun}`;
   };
 
-  const isFocusTarget = (day: YearDay): boolean => effectiveFocus === day.date.epochMs;
+  const isFocusTarget = (day: YearDay): boolean =>
+    effectiveFocus === day.date.epochMs;
 
   const onDayClick = useCallback(
     (day: YearDay): void => {
@@ -229,26 +245,26 @@ export function CalYearView<TMeta = unknown>(props: CalYearViewProps<TMeta>): Re
     let target = current;
     let select = false;
     switch (dom.key) {
-      case 'ArrowRight':
+      case "ArrowRight":
         target = current + (rtl ? -1 : 1);
         break;
-      case 'ArrowLeft':
+      case "ArrowLeft":
         target = current + (rtl ? 1 : -1);
         break;
-      case 'ArrowDown':
+      case "ArrowDown":
         target = current + 7;
         break;
-      case 'ArrowUp':
+      case "ArrowUp":
         target = current - 7;
         break;
-      case 'Home':
+      case "Home":
         target = 0;
         break;
-      case 'End':
+      case "End":
         target = navDays.length - 1;
         break;
-      case 'Enter':
-      case ' ':
+      case "Enter":
+      case " ":
         select = true;
         break;
       default:
@@ -275,7 +291,10 @@ export function CalYearView<TMeta = unknown>(props: CalYearViewProps<TMeta>): Re
   };
 
   return (
-    <div ref={host} className={`cal-year-view${className ? ` ${className}` : ''}`}>
+    <div
+      ref={host}
+      className={`cal-year-view${className ? ` ${className}` : ""}`}
+    >
       {/* Roving-tabindex grid: day cells are the focus targets; arrow/Home/End/Enter/Space
           are handled centrally here, so the container is intentionally not a tab stop. */}
       <div className="cal-year" onKeyDown={onGridKeydown}>
@@ -283,11 +302,19 @@ export function CalYearView<TMeta = unknown>(props: CalYearViewProps<TMeta>): Re
           {viewModel.months.map((month, mi) => (
             <section key={mi} className="cal-mini" aria-label={month.label}>
               <header className="cal-mini__head">
-                <button type="button" className="cal-mini__title" onClick={() => onMonthClick(mi)}>
+                <button
+                  type="button"
+                  className="cal-mini__title"
+                  onClick={() => onMonthClick(mi)}
+                >
                   {month.label}
                 </button>
               </header>
-              <div className="cal-mini__grid" role="grid" aria-label={month.label}>
+              <div
+                className="cal-mini__grid"
+                role="grid"
+                aria-label={month.label}
+              >
                 <div className="cal-mini__wdrow" role="row">
                   {weekdayInitials.map((wd, i) => (
                     <div key={i} className="cal-mini__wd" role="columnheader">
@@ -303,11 +330,11 @@ export function CalYearView<TMeta = unknown>(props: CalYearViewProps<TMeta>): Re
                           key={day.date.epochMs}
                           type="button"
                           className={[
-                            'cal-mini__day',
-                            day.isToday ? 'cal-mini__day--today' : '',
+                            "cal-mini__day",
+                            day.isToday ? "cal-mini__day--today" : "",
                           ]
                             .filter(Boolean)
-                            .join(' ')}
+                            .join(" ")}
                           data-density={density(day)}
                           data-epoch={day.date.epochMs}
                           tabIndex={isFocusTarget(day) ? 0 : -1}
@@ -319,7 +346,10 @@ export function CalYearView<TMeta = unknown>(props: CalYearViewProps<TMeta>): Re
                             {dayNumber(day)}
                           </span>
                           {day.eventCount > 0 && (
-                            <span className="cal-mini__dot" aria-hidden="true"></span>
+                            <span
+                              className="cal-mini__dot"
+                              aria-hidden="true"
+                            ></span>
                           )}
                         </button>
                       ) : (

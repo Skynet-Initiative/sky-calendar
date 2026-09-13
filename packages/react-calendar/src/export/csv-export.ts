@@ -1,7 +1,15 @@
-import type { CalendarEvent, ZonedDateTime } from '../index';
+import type { CalendarEvent, ZonedDateTime } from "../index";
 
 /** Columns emitted by {@link eventsToCsv}, in order. */
-const COLUMNS = ['id', 'title', 'start', 'end', 'allDay', 'status', 'resourceIds'] as const;
+const COLUMNS = [
+  "id",
+  "title",
+  "start",
+  "end",
+  "allDay",
+  "status",
+  "resourceIds",
+] as const;
 
 function epochOf(value: Date | ZonedDateTime): number {
   return value instanceof Date ? value.getTime() : value.epochMs;
@@ -9,10 +17,11 @@ function epochOf(value: Date | ZonedDateTime): number {
 
 /** RFC 4180 CSV field quoting. */
 function csvField(value: string): string {
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+  const safe = /^[=+\-@\t\r\n]/.test(value) ? `'${value}` : value;
+  if (/[",\r\n]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
   }
-  return value;
+  return safe;
 }
 
 /**
@@ -21,20 +30,21 @@ function csvField(value: string): string {
  * resourceIds (semicolon-joined).
  */
 export function eventsToCsv(events: readonly CalendarEvent[]): string {
-  const rows: string[] = [COLUMNS.join(',')];
+  const rows: string[] = [COLUMNS.join(",")];
   for (const event of events) {
     const start = new Date(epochOf(event.start)).toISOString();
-    const end = event.end === undefined ? '' : new Date(epochOf(event.end)).toISOString();
+    const end =
+      event.end === undefined ? "" : new Date(epochOf(event.end)).toISOString();
     const cells = [
       event.id,
-      event.title ?? '',
+      event.title ?? "",
       start,
       end,
-      event.allDay === true ? 'true' : 'false',
-      event.status ?? '',
-      (event.resourceIds ?? []).join(';'),
+      event.allDay === true ? "true" : "false",
+      event.status ?? "",
+      (event.resourceIds ?? []).join(";"),
     ];
-    rows.push(cells.map((c) => csvField(c)).join(','));
+    rows.push(cells.map((c) => csvField(c)).join(","));
   }
-  return rows.join('\r\n') + '\r\n';
+  return rows.join("\r\n") + "\r\n";
 }

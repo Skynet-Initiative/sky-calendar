@@ -1,4 +1,4 @@
-import type { ZonedDateTime } from '../date-adapter/zoned-date-time';
+import type { ZonedDateTime } from "../date-adapter/zoned-date-time";
 
 /**
  * A single calendar entry. The consumer owns this data and the library never
@@ -35,7 +35,10 @@ export interface CalendarEvent<TMeta = unknown> {
   /** Per-event override of the calendar's global editability. */
   readonly editable?: boolean;
   /** Which edges may be resized. */
-  readonly resizable?: { readonly beforeStart?: boolean; readonly afterEnd?: boolean };
+  readonly resizable?: {
+    readonly beforeStart?: boolean;
+    readonly afterEnd?: boolean;
+  };
   /** Whether the event may be dragged. */
   readonly draggable?: boolean;
   /** Marks unavailable / block-out time (non-bookable shading). */

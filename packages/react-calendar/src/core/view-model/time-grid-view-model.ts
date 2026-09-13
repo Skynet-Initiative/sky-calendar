@@ -1,9 +1,9 @@
-import type { CalendarEvent } from '../model/calendar-event';
-import type { ZonedDateTime } from '../date-adapter/zoned-date-time';
-import type { TimeAxisOrientation } from '../model/view';
-import type { PositionedChip } from './positioned-chip';
-import type { PositionedEvent, ShadeBand } from './positioned-event';
-import type { ViewPeriod } from './view-period';
+import type { CalendarEvent } from "../model/calendar-event";
+import type { ZonedDateTime } from "../date-adapter/zoned-date-time";
+import type { TimeAxisOrientation } from "../model/view";
+import type { PositionedChip } from "./positioned-chip";
+import type { PositionedEvent, ShadeBand } from "./positioned-event";
+import type { ViewPeriod } from "./view-period";
 
 /** One day column of the time grid. */
 export interface TimeColumn<TMeta = unknown> {

@@ -9,7 +9,7 @@
  * All functions are pure and SSR-safe.
  */
 
-import { contrastRatio, type Rgb } from './color';
+import { contrastRatio, type Rgb } from "./color";
 
 /** A colour in OKLCH: `l` (lightness 0–1), `c` (chroma ≥ 0), `h` (hue degrees 0–360). */
 export interface Oklch {
@@ -30,7 +30,8 @@ const toLinear = (channel8: number): number => {
 /** linear-light [0,1] → sRGB 8-bit channel (clamped). */
 const fromLinear = (linear: number): number => {
   const c = clamp(linear, 0, 1);
-  const encoded = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+  const encoded =
+    c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
   return clamp(Math.round(encoded * 255), 0, 255);
 };
 
@@ -107,7 +108,11 @@ const inGamut = (lin: LinearRgb): boolean =>
 function gamutMapChroma(oklch: Oklch): Oklch {
   const toLin = (c: number): LinearRgb => {
     const hr = (oklch.h * Math.PI) / 180;
-    return oklabToLinear({ L: oklch.l, a: c * Math.cos(hr), b: c * Math.sin(hr) });
+    return oklabToLinear({
+      L: oklch.l,
+      a: c * Math.cos(hr),
+      b: c * Math.sin(hr),
+    });
   };
 
   if (inGamut(toLin(oklch.c))) {
@@ -156,7 +161,9 @@ export function oklchToSrgb(oklch: Oklch): Rgb {
  * the building block for generating tinted neutral scales from a hue.
  */
 export function oklchColor(l: number, c: number, h: number): Rgb {
-  return oklchToSrgb(gamutMapChroma({ l: clamp(l, 0, 1), c: Math.max(0, c), h }));
+  return oklchToSrgb(
+    gamutMapChroma({ l: clamp(l, 0, 1), c: Math.max(0, c), h }),
+  );
 }
 
 /**
@@ -167,7 +174,9 @@ export function oklchColor(l: number, c: number, h: number): Rgb {
  */
 export function withLightness(rgb: Rgb, l: number): Rgb {
   const oklch = srgbToOklch(rgb);
-  return oklchToSrgb(gamutMapChroma({ l: clamp(l, 0, 1), c: oklch.c, h: oklch.h }));
+  return oklchToSrgb(
+    gamutMapChroma({ l: clamp(l, 0, 1), c: oklch.c, h: oklch.h }),
+  );
 }
 
 /** Perceptual blend of two colours in OKLab space; `t` is clamped to [0,1]. */

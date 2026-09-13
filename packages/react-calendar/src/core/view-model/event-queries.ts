@@ -1,5 +1,5 @@
-import type { DateAdapter } from '../date-adapter/date-adapter';
-import type { CalendarEvent } from '../model/calendar-event';
+import type { DateAdapter } from "../date-adapter/date-adapter";
+import type { CalendarEvent } from "../model/calendar-event";
 
 /** A detected scheduling conflict between two overlapping events. */
 export interface EventConflict<TMeta = unknown> {
@@ -22,7 +22,11 @@ interface Span {
  */
 export function detectConflicts<TMeta = unknown>(
   events: readonly CalendarEvent<TMeta>[],
-  ctx: { readonly dates: DateAdapter; readonly zone: string; readonly sameResourceOnly?: boolean },
+  ctx: {
+    readonly dates: DateAdapter;
+    readonly zone: string;
+    readonly sameResourceOnly?: boolean;
+  },
 ): EventConflict<TMeta>[] {
   const sameResourceOnly = ctx.sameResourceOnly ?? true;
   const spans: Span[] = [];
@@ -31,11 +35,15 @@ export function detectConflicts<TMeta = unknown>(
       continue;
     }
     const start = ctx.dates.toZoned(event.start, ctx.zone);
-    const end = event.end === undefined ? start : ctx.dates.toZoned(event.end, ctx.zone);
+    const end =
+      event.end === undefined ? start : ctx.dates.toZoned(event.end, ctx.zone);
     spans.push({ event, startMs: start.epochMs, endMs: end.epochMs });
   }
 
-  const sharesResource = (a: CalendarEvent<unknown>, b: CalendarEvent<unknown>): boolean => {
+  const sharesResource = (
+    a: CalendarEvent<unknown>,
+    b: CalendarEvent<unknown>,
+  ): boolean => {
     if (!sameResourceOnly) {
       return true;
     }
@@ -58,7 +66,10 @@ export function detectConflicts<TMeta = unknown>(
       }
     }
     for (const other of active) {
-      if (span.startMs < other.endMs && sharesResource(span.event, other.event)) {
+      if (
+        span.startMs < other.endMs &&
+        sharesResource(span.event, other.event)
+      ) {
         conflicts.push({
           a: other.event as CalendarEvent<TMeta>,
           b: span.event as CalendarEvent<TMeta>,

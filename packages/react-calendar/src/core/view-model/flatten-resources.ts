@@ -1,4 +1,4 @@
-import type { CalendarResource } from '../model/calendar-resource';
+import type { CalendarResource } from "../model/calendar-resource";
 
 /** A resource placed in the flattened, depth-annotated tree order. */
 export interface FlatResource<TMeta = unknown> {

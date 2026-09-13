@@ -1,7 +1,7 @@
-import type { DateAdapter } from '../date-adapter/date-adapter';
-import type { ZonedDateTime } from '../date-adapter/zoned-date-time';
-import type { CalendarEvent } from '../model/calendar-event';
-import type { RecurrenceAdapter } from './recurrence-adapter';
+import type { DateAdapter } from "../date-adapter/date-adapter";
+import type { ZonedDateTime } from "../date-adapter/zoned-date-time";
+import type { CalendarEvent } from "../model/calendar-event";
+import type { RecurrenceAdapter } from "./recurrence-adapter";
 
 /** Context for {@link expandRecurringEvents}. */
 export interface ExpandContext {
@@ -28,12 +28,13 @@ export function expandRecurringEvents<TMeta = unknown>(
 ): CalendarEvent<TMeta>[] {
   const out: CalendarEvent<TMeta>[] = [];
   for (const event of events) {
-    if (event.recurrenceRule === undefined || event.recurrenceRule === '') {
+    if (event.recurrenceRule === undefined || event.recurrenceRule === "") {
       out.push(event);
       continue;
     }
     const start = ctx.dates.toZoned(event.start, ctx.zone);
-    const end = event.end === undefined ? start : ctx.dates.toZoned(event.end, ctx.zone);
+    const end =
+      event.end === undefined ? start : ctx.dates.toZoned(event.end, ctx.zone);
     const durationMinutes = ctx.dates.differenceInMinutes(end, start);
     const exceptions = (event.recurrenceExceptions ?? []).map((ex) =>
       ctx.dates.toZoned(ex, ctx.zone),

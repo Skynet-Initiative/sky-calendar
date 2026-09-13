@@ -1,20 +1,24 @@
-import type { DateAdapter } from '../date-adapter/date-adapter';
-import type { ZonedDateTime } from '../date-adapter/zoned-date-time';
-import type { CalendarEvent } from '../model/calendar-event';
-import { packColumns } from '../layout/pack-columns';
-import { packRows } from '../layout/pack-rows';
-import type { Interval } from '../layout/interval';
-import { offsetFraction, sizeFraction, type ProjectionRange } from '../layout/projection';
-import { resolveTimeFormat } from '../config/calendar-config';
-import type { PositionedChip } from './positioned-chip';
-import type { PositionedEvent } from './positioned-event';
+import type { DateAdapter } from "../date-adapter/date-adapter";
+import type { ZonedDateTime } from "../date-adapter/zoned-date-time";
+import type { CalendarEvent } from "../model/calendar-event";
+import { packColumns } from "../layout/pack-columns";
+import { packRows } from "../layout/pack-rows";
+import type { Interval } from "../layout/interval";
+import {
+  offsetFraction,
+  sizeFraction,
+  type ProjectionRange,
+} from "../layout/projection";
+import { resolveTimeFormat } from "../config/calendar-config";
+import type { PositionedChip } from "./positioned-chip";
+import type { PositionedEvent } from "./positioned-event";
 import type {
   TimeColumn,
   TimeGridViewArgs,
   TimeGridViewModel,
   TimeTick,
-} from './time-grid-view-model';
-import type { ViewPeriod } from './view-period';
+} from "./time-grid-view-model";
+import type { ViewPeriod } from "./view-period";
 
 const DEFAULT_WEEKEND: readonly number[] = [0, 6];
 
@@ -75,10 +79,13 @@ export function buildTimeGridView<TMeta = unknown>(
   // ── resolve events to day ranges once ──────────────────────────────────
   const resolved: DayRange<TMeta>[] = args.events.map((event) => {
     const start = adapter.toZoned(event.start, zone);
-    const end = event.end === undefined ? start : adapter.toZoned(event.end, zone);
+    const end =
+      event.end === undefined ? start : adapter.toZoned(event.end, zone);
     const startDay = adapter.startOfDay(start);
     const lastInstant =
-      adapter.differenceInMinutes(end, start) > 0 ? adapter.addMinutes(end, -1) : start;
+      adapter.differenceInMinutes(end, start) > 0
+        ? adapter.addMinutes(end, -1)
+        : start;
     const lastDay = adapter.startOfDay(lastInstant);
     const spansDays = lastDay.epochMs > startDay.epochMs;
     return {
@@ -97,11 +104,16 @@ export function buildTimeGridView<TMeta = unknown>(
     // is ~60 min shorter/longer. Only on those two days a year does elapsed-since-midnight
     // diverge from the wall clock, so we keep the cheap arithmetic path for every other day
     // and fall back to the exact (tz-aware) wall-clock read only when it actually matters.
-    const isDstDay = Math.abs(adapter.differenceInMinutes(adapter.endOfDay(day), day) - 1439) > 1;
+    const isDstDay =
+      Math.abs(adapter.differenceInMinutes(adapter.endOfDay(day), day) - 1439) >
+      1;
     // Wall-clock minutes into THIS column's day (DST-safe). Uses the entry's precomputed
     // start-of-day epoch (a cheap integer compare, no per-event tz call); instants on another
     // day resolve outside the window so they clamp with the continues flags.
-    const wallMinInto = (instant: ZonedDateTime, instantDayEpoch: number): number => {
+    const wallMinInto = (
+      instant: ZonedDateTime,
+      instantDayEpoch: number,
+    ): number => {
       if (instantDayEpoch !== day.epochMs) {
         return instant.epochMs < day.epochMs ? -1 : args.dayEndMinutes + 1;
       }
@@ -109,15 +121,21 @@ export function buildTimeGridView<TMeta = unknown>(
         ? adapter.getMinutesIntoDay(instant)
         : (instant.epochMs - day.epochMs) / 60_000;
     };
-    const timed: Interval<{ entry: DayRange<TMeta>; cs: number; ce: number; cb: boolean; ca: boolean }>[] =
-      [];
+    const timed: Interval<{
+      entry: DayRange<TMeta>;
+      cs: number;
+      ce: number;
+      cb: boolean;
+      ca: boolean;
+    }>[] = [];
     for (const entry of resolved) {
       if (entry.allDayLike) {
         continue;
       }
       const evStartMin = wallMinInto(entry.start, entry.startDayEpoch);
       const evEndMin = wallMinInto(entry.end, entry.lastDayEpoch);
-      const overlapsWindow = evEndMin > args.dayStartMinutes && evStartMin < args.dayEndMinutes;
+      const overlapsWindow =
+        evEndMin > args.dayStartMinutes && evStartMin < args.dayEndMinutes;
       const pointInWindow =
         evStartMin === evEndMin &&
         evStartMin >= args.dayStartMinutes &&
@@ -131,7 +149,9 @@ export function buildTimeGridView<TMeta = unknown>(
       // end; pack them as at least that wide so near-adjacent events stack onto
       // separate lanes rather than overlapping. Rendering still uses the real cs/ce.
       const packEnd =
-        args.orientation === 'horizontal' ? Math.max(ce, cs + HORIZONTAL_MIN_VISUAL_MINUTES) : ce;
+        args.orientation === "horizontal"
+          ? Math.max(ce, cs + HORIZONTAL_MIN_VISUAL_MINUTES)
+          : ce;
       timed.push({
         start: cs,
         end: packEnd,
@@ -212,7 +232,11 @@ export function buildTimeGridView<TMeta = unknown>(
     });
   }
   const allDayPacked = packRows(
-    segments.map((s) => ({ start: s.startColumn, end: s.startColumn + s.span, data: s })),
+    segments.map((s) => ({
+      start: s.startColumn,
+      end: s.startColumn + s.span,
+      data: s,
+    })),
   );
   const allDay: PositionedChip<TMeta>[] = allDayPacked.items.map((item) => ({
     event: item.data.event,
@@ -239,14 +263,16 @@ export function buildTimeGridView<TMeta = unknown>(
     ticks.push({
       offset: offsetFraction(m, range),
       minutes: m,
-      label: major ? adapter.format(instant, timeFormat, args.locale) : '',
+      label: major ? adapter.format(instant, timeFormat, args.locale) : "",
       major,
     });
   }
 
   const period: ViewPeriod = {
     start: columnDays[0] ?? base,
-    end: adapter.startOfDay(adapter.addDays(columnDays[columnDays.length - 1] ?? base, 1)),
+    end: adapter.startOfDay(
+      adapter.addDays(columnDays[columnDays.length - 1] ?? base, 1),
+    ),
     zone,
   };
 

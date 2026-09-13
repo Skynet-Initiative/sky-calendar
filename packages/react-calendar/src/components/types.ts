@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react';
-import type { CalendarEvent } from '../core/model/calendar-event';
-import type { CalendarResource } from '../core/model/calendar-resource';
-import type { PositionedChip } from '../core/view-model/positioned-chip';
-import type { MonthDay } from '../core/view-model/month-view-model';
+import type { ReactNode } from "react";
+import type { CalendarEvent } from "../core/model/calendar-event";
+import type { CalendarResource } from "../core/model/calendar-resource";
+import type { PositionedChip } from "../core/view-model/positioned-chip";
+import type { MonthDay } from "../core/view-model/month-view-model";
 
 /**
  * Render-prop slots — the React equivalent of the Angular package's
@@ -21,7 +21,10 @@ export type RenderEvent<TMeta = unknown> = (
 export type RenderCell<TMeta = unknown> = (day: MonthDay<TMeta>) => ReactNode;
 
 /** Replaces the "+N more" overflow control. */
-export type RenderOverflow<TMeta = unknown> = (count: number, day: MonthDay<TMeta>) => ReactNode;
+export type RenderOverflow<TMeta = unknown> = (
+  count: number,
+  day: MonthDay<TMeta>,
+) => ReactNode;
 
 /** Replaces a timeline resource-header cell. `ctx` carries the row's tree state. */
 export type RenderResourceHeader = (

@@ -1,9 +1,9 @@
-import type { CalendarEvent } from '../model/calendar-event';
-import type { CalendarResource } from '../model/calendar-resource';
-import type { ZonedDateTime } from '../date-adapter/zoned-date-time';
-import type { TimeAxisOrientation } from '../model/view';
-import type { PositionedEvent, ShadeBand } from './positioned-event';
-import type { ViewPeriod } from './view-period';
+import type { CalendarEvent } from "../model/calendar-event";
+import type { CalendarResource } from "../model/calendar-resource";
+import type { ZonedDateTime } from "../date-adapter/zoned-date-time";
+import type { TimeAxisOrientation } from "../model/view";
+import type { PositionedEvent, ShadeBand } from "./positioned-event";
+import type { ViewPeriod } from "./view-period";
 
 /** A header cell along the timeline's time axis. */
 export interface TimeHeaderCell {
@@ -18,7 +18,13 @@ export interface TimeHeaderCell {
 }
 
 /** Time-axis grouping unit for a header row. */
-export type TimeHeaderUnit = 'year' | 'month' | 'week' | 'day' | 'hour' | 'minute';
+export type TimeHeaderUnit =
+  | "year"
+  | "month"
+  | "week"
+  | "day"
+  | "hour"
+  | "minute";
 
 /** One stacked header row (e.g. a day row above an hour row). */
 export interface TimeHeaderRow {

@@ -1,7 +1,7 @@
-import type { CalendarEvent } from '../model/calendar-event';
-import type { ZonedDateTime } from '../date-adapter/zoned-date-time';
-import type { PositionedChip } from './positioned-chip';
-import type { ViewPeriod } from './view-period';
+import type { CalendarEvent } from "../model/calendar-event";
+import type { ZonedDateTime } from "../date-adapter/zoned-date-time";
+import type { PositionedChip } from "./positioned-chip";
+import type { ViewPeriod } from "./view-period";
 
 /** A single day cell in the month grid. */
 export interface MonthDay<TMeta = unknown> {

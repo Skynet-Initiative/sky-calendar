@@ -14,22 +14,22 @@
  */
 export class CalCalendarIntl {
   /** All-day band / agenda label for all-day events. */
-  allDay = 'All day';
+  allDay = "All day";
   /** Agenda heading for a day with no events. */
-  noEvents = 'No events';
+  noEvents = "No events";
   /** Frozen resource-column header (timeline). */
-  resourcesHeader = 'Resources';
+  resourcesHeader = "Resources";
 
   /** Generic close-button label (event dialog, overflow popover). */
-  close = 'Close';
+  close = "Close";
   /** Fallback title for an event with no `title`. */
-  untitledEvent = '(untitled)';
+  untitledEvent = "(untitled)";
   /** Event-dialog field labels. */
-  dialogWhen = 'When';
-  dialogStatus = 'Status';
-  dialogRepeats = 'Repeats';
+  dialogWhen = "When";
+  dialogStatus = "Status";
+  dialogRepeats = "Repeats";
   /** Event-dialog value shown for a recurring event. */
-  recurringEvent = 'Recurring event';
+  recurringEvent = "Recurring event";
 
   /** "+N" overflow control text (month). */
   moreLabel(count: number): string {

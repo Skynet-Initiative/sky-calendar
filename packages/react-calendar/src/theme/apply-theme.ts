@@ -1,4 +1,4 @@
-import type { CalThemeTokens } from './tokens';
+import type { CalThemeTokens } from "./tokens";
 
 /**
  * A token bridge maps calendar custom properties to the host application's own
@@ -12,7 +12,7 @@ export type CalTokenBridge = Partial<Record<`--cal-${string}`, string>>;
 /** Wrap a bare custom-property reference in `var(...)`; pass through existing `var()`. */
 function asVarRef(ref: string): string {
   const trimmed = ref.trim();
-  if (trimmed.startsWith('var(')) {
+  if (trimmed.startsWith("var(")) {
     return trimmed;
   }
   return `var(${trimmed})`;
@@ -43,7 +43,7 @@ export function applyTheme(
   }
   if (bridge) {
     for (const [name, ref] of Object.entries(bridge)) {
-      if (ref !== undefined && ref !== '') {
+      if (ref !== undefined && ref !== "") {
         element.style.setProperty(name, asVarRef(ref));
       }
     }

@@ -1,4 +1,8 @@
-import type { CalendarSystem, EraFields, ZonedDateTime } from './zoned-date-time';
+import type {
+  CalendarSystem,
+  EraFields,
+  ZonedDateTime,
+} from "./zoned-date-time";
 
 /**
  * Pluggable date engine. The headless core never imports a date library directly;
@@ -65,5 +69,10 @@ export interface DateAdapter {
    * format tokens (see the adapter's preset table); formatting is locale-, zone-
    * and calendar-system-aware via `Intl`.
    */
-  format(d: ZonedDateTime, pattern: string, locale: string, system?: CalendarSystem): string;
+  format(
+    d: ZonedDateTime,
+    pattern: string,
+    locale: string,
+    system?: CalendarSystem,
+  ): string;
 }

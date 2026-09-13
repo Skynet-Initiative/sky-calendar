@@ -1,4 +1,4 @@
-import type { Interval } from './interval';
+import type { Interval } from "./interval";
 
 /** An interval assigned to a horizontal row (lane), preserving its payload. */
 export interface LanePlacement<T> {

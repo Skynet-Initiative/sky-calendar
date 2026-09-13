@@ -1,19 +1,19 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from "react";
 import {
   DEFAULT_CALENDAR_CONFIG,
   type CalendarConfig,
-} from '../core/config/calendar-config';
-import type { DateAdapter } from '../core/date-adapter/date-adapter';
-import type { RecurrenceAdapter } from '../core/recurrence/recurrence-adapter';
-import type { CalTokenBridge } from '../theme/apply-theme';
-import { CalCalendarIntl } from '../i18n/cal-calendar-intl';
-import { CalCalendarA11y } from '../a11y/cal-calendar-a11y';
+} from "../core/config/calendar-config";
+import type { DateAdapter } from "../core/date-adapter/date-adapter";
+import type { RecurrenceAdapter } from "../core/recurrence/recurrence-adapter";
+import type { CalTokenBridge } from "../theme/apply-theme";
+import { CalCalendarIntl } from "../i18n/cal-calendar-intl";
+import { CalCalendarA11y } from "../a11y/cal-calendar-a11y";
 import {
   CalendarContext,
   DEFAULT_VIRTUALIZATION,
   type CalendarContextValue,
   type CalVirtualizationOptions,
-} from './calendar-context';
+} from "./calendar-context";
 
 /** Props for {@link CalendarProvider}. All optional; pass only what you use. */
 export interface CalendarProviderProps {
@@ -81,7 +81,19 @@ export function CalendarProvider(props: CalendarProviderProps): ReactNode {
       intl: intl ?? new CalCalendarIntl(),
       a11y: a11y ?? new CalCalendarA11y(dateAdapter ?? null, config),
     };
-  }, [defaults, dateAdapter, recurrenceAdapter, tokenBridge, virtualization, intl, a11y]);
+  }, [
+    defaults,
+    dateAdapter,
+    recurrenceAdapter,
+    tokenBridge,
+    virtualization,
+    intl,
+    a11y,
+  ]);
 
-  return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>;
+  return (
+    <CalendarContext.Provider value={value}>
+      {children}
+    </CalendarContext.Provider>
+  );
 }

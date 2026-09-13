@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../model/calendar-event';
+import type { CalendarEvent } from "../model/calendar-event";
 
 /**
  * Immutable geometry for one timed event within a time-grid/timeline column.
@@ -28,5 +28,5 @@ export interface PositionedEvent<TMeta = unknown> {
 export interface ShadeBand {
   readonly startOffset: number;
   readonly span: number;
-  readonly kind: 'work' | 'off' | 'block';
+  readonly kind: "work" | "off" | "block";
 }
