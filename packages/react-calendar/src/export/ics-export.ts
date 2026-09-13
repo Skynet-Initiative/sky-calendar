@@ -50,17 +50,23 @@ function esc(value: string): string {
 
 /** Fold long content lines to 75 octets per RFC 5545 §3.1. */
 function fold(line: string): string {
-  if (line.length <= 75) {
-    return line;
+  const encoder = new TextEncoder();
+  const chunks: string[] = [];
+  let chunk = "";
+  let limit = 75;
+  for (const character of line) {
+    if (encoder.encode(chunk + character).length > limit) {
+      chunks.push(chunk);
+      chunk = character;
+      limit = 74;
+    } else {
+      chunk += character;
+    }
   }
-  const chunks: string[] = [line.slice(0, 75)];
-  let rest = line.slice(75);
-  while (rest.length > 74) {
-    chunks.push(` ${rest.slice(0, 74)}`);
-    rest = rest.slice(74);
-  }
-  chunks.push(` ${rest}`);
-  return chunks.join(CRLF);
+  chunks.push(chunk);
+  return chunks
+    .map((value, index) => (index === 0 ? value : ` ${value}`))
+    .join(CRLF);
 }
 
 /**

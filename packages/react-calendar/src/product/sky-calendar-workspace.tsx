@@ -9,6 +9,7 @@ import {
   type FormEvent,
   type MouseEvent,
 } from "react";
+import { rrulestr } from "rrule";
 import type {
   ProductCalendar,
   ProductEvent,
@@ -36,6 +37,10 @@ interface Draft {
   description: string;
   recurrenceRule: string;
   attendees: string;
+}
+
+interface DisplayEvent extends ProductEvent {
+  instanceKey: string;
 }
 
 const DAY_MS = 86_400_000;
@@ -348,6 +353,7 @@ export function SkyCalendarWorkspace({
 
   const days = viewDays(cursor, view);
   const title = periodTitle(cursor, view, locale);
+  const displayEvents = expandRecurrences(events, period.from, period.to);
 
   return (
     <section className="skycal" aria-labelledby="skycal-title">
@@ -423,7 +429,7 @@ export function SkyCalendarWorkspace({
       {!loading && view === "month" ? (
         <Month
           days={days}
-          events={events}
+          events={displayEvents}
           locale={locale}
           onSlotClick={handleSlotClick}
           onEventClick={handleEventClick}
@@ -435,7 +441,7 @@ export function SkyCalendarWorkspace({
       {!loading && (view === "week" || view === "day") ? (
         <TimeGrid
           days={days}
-          events={events}
+          events={displayEvents}
           locale={locale}
           onSlotClick={handleSlotClick}
           onEventClick={handleEventClick}
@@ -446,7 +452,7 @@ export function SkyCalendarWorkspace({
       ) : null}
       {!loading && view === "agenda" ? (
         <Agenda
-          events={events}
+          events={displayEvents}
           locale={locale}
           onEventClick={handleEventClick}
         />
@@ -660,7 +666,7 @@ function Month({
   ...handlers
 }: {
   days: Date[];
-  events: ProductEvent[];
+  events: DisplayEvent[];
   locale?: string;
 } & CalendarHandlers) {
   return (
@@ -695,7 +701,7 @@ function Month({
               {items.slice(0, 4).map((item) => (
                 <EventButton
                   item={item}
-                  key={item.id}
+                  key={item.instanceKey}
                   onClick={handlers.onEventClick}
                   onDragStart={handlers.onDragStart}
                 />
@@ -718,7 +724,7 @@ function TimeGrid({
   ...handlers
 }: {
   days: Date[];
-  events: ProductEvent[];
+  events: DisplayEvent[];
   locale?: string;
 } & CalendarHandlers) {
   return (
@@ -757,7 +763,7 @@ function TimeRow({
 }: {
   hour: number;
   days: Date[];
-  events: ProductEvent[];
+  events: DisplayEvent[];
   handlers: CalendarHandlers;
 }) {
   return (
@@ -786,7 +792,7 @@ function TimeRow({
             {items.map((item) => (
               <EventButton
                 item={item}
-                key={item.id}
+                key={item.instanceKey}
                 onClick={handlers.onEventClick}
                 onDragStart={handlers.onDragStart}
               />
@@ -803,7 +809,7 @@ function EventButton({
   onClick,
   onDragStart,
 }: {
-  item: ProductEvent;
+  item: DisplayEvent;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
 }) {
@@ -828,7 +834,7 @@ function Agenda({
   locale,
   onEventClick,
 }: {
-  events: ProductEvent[];
+  events: DisplayEvent[];
   locale?: string;
   onEventClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
@@ -838,7 +844,7 @@ function Agenda({
   return (
     <ol className="skycal__agenda">
       {sorted.map((item) => (
-        <li key={item.id}>
+        <li key={item.instanceKey}>
           <time dateTime={item.start}>
             {new Intl.DateTimeFormat(locale, {
               weekday: "short",
@@ -964,9 +970,38 @@ function dateKey(date: Date): string {
 function localInput(date: Date): string {
   return `${dateKey(date)}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
-function eventsForDay(events: ProductEvent[], day: Date): ProductEvent[] {
+function eventsForDay(events: DisplayEvent[], day: Date): DisplayEvent[] {
   const key = dateKey(day);
   return events.filter((item) => dateKey(new Date(item.start)) === key);
+}
+
+function expandRecurrences(
+  events: ProductEvent[],
+  from: Date,
+  to: Date,
+): DisplayEvent[] {
+  return events.flatMap((event) => {
+    if (!event.recurrenceRule) return [{ ...event, instanceKey: event.id }];
+    try {
+      const rule = rrulestr(event.recurrenceRule.replace(/^RRULE:/, ""), {
+        dtstart: new Date(event.start),
+      });
+      const duration = Date.parse(event.end) - Date.parse(event.start);
+      const exceptions = new Set(event.recurrenceExceptions);
+      return rule
+        .between(from, to, true)
+        .slice(0, 1_000)
+        .filter((start) => !exceptions.has(start.toISOString()))
+        .map((start) => ({
+          ...event,
+          start: start.toISOString(),
+          end: new Date(start.getTime() + duration).toISOString(),
+          instanceKey: `${event.id}:${start.toISOString()}`,
+        }));
+    } catch {
+      return [{ ...event, instanceKey: event.id }];
+    }
+  });
 }
 function weekdays(locale?: string): string[] {
   const monday = new Date(2024, 0, 1);

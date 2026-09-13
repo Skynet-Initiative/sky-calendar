@@ -71,4 +71,39 @@ describe("SkyCalendarWorkspace", () => {
       expect.objectContaining({ title: "Planning", allDay: true }),
     );
   });
+
+  it("renders bounded recurrence instances in the visible period", async () => {
+    const recurring: ProductEvent = {
+      id: "event-recurring",
+      calendarId: calendar.id,
+      title: "Daily sync",
+      description: null,
+      location: null,
+      start: "2026-09-01T09:00:00.000Z",
+      end: "2026-09-01T09:30:00.000Z",
+      allDay: false,
+      timeZone: "UTC",
+      recurrenceRule: "FREQ=DAILY;COUNT=3",
+      recurrenceExceptions: [],
+      status: "confirmed",
+      visibility: "default",
+      attendees: [],
+    };
+    const transport: SkyCalendarTransport = {
+      listCalendars: vi.fn().mockResolvedValue([calendar]),
+      createCalendar: vi.fn(),
+      listEvents: vi.fn().mockResolvedValue([recurring]),
+      createEvent: vi.fn(),
+      replaceEvent: vi.fn(),
+      deleteEvent: vi.fn(),
+    };
+
+    render(
+      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
+    );
+
+    expect(
+      await screen.findAllByRole("button", { name: /Daily sync/i }),
+    ).toHaveLength(3);
+  });
 });

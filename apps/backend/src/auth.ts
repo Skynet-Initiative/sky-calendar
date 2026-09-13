@@ -2,6 +2,7 @@ import { createPublicKey, type KeyObject } from "node:crypto";
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   SetMetadata,
   UnauthorizedException,
@@ -76,17 +77,21 @@ export class PlatformTokenVerifier {
 
   async verify(token: string): Promise<Principal> {
     for (const key of this.keys) {
+      let payload: Record<string, unknown>;
       try {
-        const { payload } = await jwtVerify(token, key, {
-          audience: this.audience,
+        const verified = await jwtVerify(token, key, {
           algorithms: ["EdDSA"],
           clockTolerance: CLOCK_TOLERANCE_SECONDS,
           requiredClaims: ["aud", "exp", "iat", "scope", "actor"],
         });
-        return principalFromPayload(payload, this.audience);
+        payload = verified.payload;
       } catch {
         // The next locally configured key may be active during rotation.
+        continue;
       }
+      if (payload.aud !== this.audience)
+        throw new ForbiddenException("Forbidden");
+      return principalFromPayload(payload, this.audience);
     }
     throw unauthorized();
   }

@@ -43,11 +43,34 @@ describe("calendar authorization", () => {
     const segments = token.split(".");
     const signature = segments[2];
     if (!signature) throw new Error("Missing JWT signature");
-    const replacement = signature.startsWith("A") ? "B" : "A";
-    segments[2] = `${replacement}${signature.slice(1)}`;
+    const index = Math.floor(signature.length / 2);
+    const replacement = signature[index] === "A" ? "B" : "A";
+    segments[2] = `${signature.slice(0, index)}${replacement}${signature.slice(index + 1)}`;
     await expect(verifier.verify(segments.join("."))).rejects.toThrow(
       UnauthorizedException,
     );
+  });
+
+  it("returns forbidden for a valid token minted for another package", async () => {
+    const keys = generateKeyPairSync("ed25519");
+    const jwk = keys.publicKey.export({ format: "jwk" });
+    if (typeof jwk.x !== "string") throw new Error("Missing Ed25519 key");
+    const issuedAt = Math.floor(Date.now() / 1_000);
+    const token = await new SignJWT({
+      actor,
+      scope: "read:workspace:workspace-a",
+    })
+      .setProtectedHeader({ alg: "EdDSA" })
+      .setAudience("another-package")
+      .setIssuedAt(issuedAt)
+      .setExpirationTime(issuedAt + 300)
+      .sign(keys.privateKey);
+    const verifier = new PlatformTokenVerifier(
+      [Buffer.from(jwk.x, "base64url").toString("base64")],
+      "sky-calendar",
+    );
+
+    await expect(verifier.verify(token)).rejects.toThrow("Forbidden");
   });
 
   it("requires both the action and exact workspace grant", () => {

@@ -32,4 +32,14 @@ describe("calendar exports", () => {
     );
     expect(output).not.toContain("X-INJECTED");
   });
+
+  it("folds multibyte content at 75 UTF-8 octets", () => {
+    const output = eventsToIcs([{ ...event, title: "é".repeat(100) }], {
+      zone: "UTC",
+    });
+    const encoder = new TextEncoder();
+    for (const line of output.split("\r\n")) {
+      expect(encoder.encode(line).length).toBeLessThanOrEqual(75);
+    }
+  });
 });
