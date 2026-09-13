@@ -6,13 +6,30 @@ import {
   IsEmail,
   IsISO8601,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   MaxLength,
   Matches,
+  Max,
   MinLength,
+  Min,
+  IsUUID,
   ValidateNested,
 } from "class-validator";
+
+export class ExportEventsQueryDto {
+  @IsOptional()
+  @IsUUID("4")
+  cursor?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 25;
+}
 
 export class CreateCalendarDto {
   @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))

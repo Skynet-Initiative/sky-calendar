@@ -38,6 +38,10 @@ integration("CalendarService PostgreSQL isolation", () => {
         calendarA.id,
         input,
       )) as { id: string };
+      const eventA2 = (await service.createEvent(workspaceA, calendarA.id, {
+        ...input,
+        title: "Second planning",
+      })) as { id: string };
       await service.createEvent(workspaceB, calendarB.id, input);
 
       await expect(
@@ -46,8 +50,22 @@ integration("CalendarService PostgreSQL isolation", () => {
           "2026-09-01T00:00:00.000Z",
           "2026-10-01T00:00:00.000Z",
         ),
-      ).resolves.toHaveLength(1);
-      await expect(service.exportEvents(workspaceA)).resolves.toHaveLength(1);
+      ).resolves.toHaveLength(2);
+      const firstPage = await service.exportEvents(workspaceA, undefined, 1);
+      expect(firstPage.items).toHaveLength(1);
+      expect(firstPage.nextCursor).toBe(firstPage.items[0]?.id);
+      const secondPage = await service.exportEvents(
+        workspaceA,
+        firstPage.nextCursor ?? undefined,
+        1,
+      );
+      expect(secondPage.items).toHaveLength(1);
+      expect(secondPage.nextCursor).toBeNull();
+      expect(
+        new Set(
+          [...firstPage.items, ...secondPage.items].map((item) => item.id),
+        ),
+      ).toEqual(new Set([eventA.id, eventA2.id]));
       await expect(
         service.replaceEvent(workspaceB, eventA.id, input),
       ).rejects.toMatchObject({ status: 404 });

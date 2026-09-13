@@ -13,7 +13,11 @@ import {
 } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../auth.js";
 import { authorize } from "../auth.js";
-import { CreateCalendarDto, CreateEventDto } from "./calendar.dto.js";
+import {
+  CreateCalendarDto,
+  CreateEventDto,
+  ExportEventsQueryDto,
+} from "./calendar.dto.js";
 import { CalendarService } from "./calendar.service.js";
 
 @Controller("workspaces/:workspaceId")
@@ -54,9 +58,10 @@ export class CalendarController {
   exportEvents(
     @Req() request: AuthenticatedRequest,
     @Param("workspaceId") workspaceId: string,
+    @Query() query: ExportEventsQueryDto,
   ) {
     requireAction(request, workspaceId, "read");
-    return this.service.exportEvents(workspaceId);
+    return this.service.exportEvents(workspaceId, query.cursor, query.limit);
   }
 
   @Post("calendars/:calendarId/events")
