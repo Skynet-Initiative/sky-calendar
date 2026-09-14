@@ -28,7 +28,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://sky_calendar:test-only@127.0.0.1:5432/sky_calendar
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
