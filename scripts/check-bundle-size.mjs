@@ -54,7 +54,9 @@ function entrySize(path, seen = new Set()) {
   seen.add(path);
   const source = readFileSync(path);
   const text = source.toString("utf8");
-  const imported = [...text.matchAll(/(?:from\s+|import\s*)["'](\.\/[^"']+\.js)["']/g)];
+  const imported = [
+    ...text.matchAll(/(?:from\s+|import\s*)["'](\.\/[^"']+\.js)["']/g),
+  ];
   return (
     gzipSync(source).length +
     imported.reduce(
