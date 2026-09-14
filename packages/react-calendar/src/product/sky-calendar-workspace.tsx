@@ -78,6 +78,8 @@ export function SkyCalendarWorkspace({
   const [calendarDraft, setCalendarDraft] = useState("");
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -98,11 +100,13 @@ export function SkyCalendarWorkspace({
         if (!live) return;
         setCalendars(nextCalendars);
         setEvents(nextEvents);
+        setLoadFailed(false);
         setMessage("");
       })
       .catch((error: unknown) => {
         if (!live) return;
-        setMessage("Calendar data could not be loaded.");
+        setLoadFailed(true);
+        setMessage("");
         onError?.(error);
       })
       .finally(() => {
@@ -111,7 +115,7 @@ export function SkyCalendarWorkspace({
     return () => {
       live = false;
     };
-  }, [onError, period.from, period.to, transport]);
+  }, [onError, period.from, period.to, reloadKey, transport]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -253,6 +257,12 @@ export function SkyCalendarWorkspace({
 
   function today() {
     setCursor(startOfDay(wallDateFromInstant(new Date(), timeZone)));
+  }
+
+  function retryLoad() {
+    setLoading(true);
+    setLoadFailed(false);
+    setReloadKey((current) => current + 1);
   }
 
   function closeDraft() {
@@ -500,10 +510,16 @@ export function SkyCalendarWorkspace({
     <section className="skycal" aria-labelledby="skycal-title">
       <header className="skycal__header">
         <div>
-          <p className="skycal__eyebrow">Sky Calendar</p>
           <h1 id="skycal-title">{title}</h1>
         </div>
         <div className="skycal__primary-actions">
+          <button
+            className="skycal__button skycal__button--primary"
+            type="button"
+            onClick={handleCreateNow}
+          >
+            New event
+          </button>
           <button
             className="skycal__button"
             type="button"
@@ -528,13 +544,6 @@ export function SkyCalendarWorkspace({
             disabled={saving}
           >
             Export CSV
-          </button>
-          <button
-            className="skycal__button skycal__button--primary"
-            type="button"
-            onClick={handleCreateNow}
-          >
-            New event
           </button>
         </div>
       </header>
@@ -585,7 +594,18 @@ export function SkyCalendarWorkspace({
           Loading calendar…
         </p>
       ) : null}
-      {!loading && view === "month" ? (
+      {!loading && loadFailed ? (
+        <div className="skycal__state" role="alert">
+          <strong>Calendar unavailable</strong>
+          <span>
+            Your events are unchanged. Check your connection and try again.
+          </span>
+          <button className="skycal__button" type="button" onClick={retryLoad}>
+            Try again
+          </button>
+        </div>
+      ) : null}
+      {!loading && !loadFailed && view === "month" ? (
         <Month
           days={days}
           events={displayEvents}
@@ -598,7 +618,7 @@ export function SkyCalendarWorkspace({
           onDrop={handleDrop}
         />
       ) : null}
-      {!loading && (view === "week" || view === "day") ? (
+      {!loading && !loadFailed && (view === "week" || view === "day") ? (
         <TimeGrid
           days={days}
           events={displayEvents}
@@ -611,7 +631,7 @@ export function SkyCalendarWorkspace({
           onDrop={handleDrop}
         />
       ) : null}
-      {!loading && view === "agenda" ? (
+      {!loading && !loadFailed && view === "agenda" ? (
         <Agenda
           events={displayEvents}
           locale={locale}

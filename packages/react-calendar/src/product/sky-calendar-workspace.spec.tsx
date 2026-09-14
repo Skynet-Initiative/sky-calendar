@@ -24,6 +24,38 @@ beforeAll(() => {
 });
 
 describe("SkyCalendarWorkspace", () => {
+  it("offers a real retry after an initial loading failure", async () => {
+    const listCalendars = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("network"))
+      .mockResolvedValueOnce([calendar]);
+    const listEvents = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("network"))
+      .mockResolvedValueOnce([]);
+    const transport: SkyCalendarTransport = {
+      listCalendars,
+      createCalendar: vi.fn(),
+      listEvents,
+      exportEvents: vi.fn(),
+      createEvent: vi.fn(),
+      replaceEvent: vi.fn(),
+      deleteEvent: vi.fn(),
+    };
+
+    render(
+      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+
+    await waitFor(() => expect(listCalendars).toHaveBeenCalledTimes(2));
+    expect(listEvents).toHaveBeenCalledTimes(2);
+    expect(
+      await screen.findAllByRole("button", { name: /create event on/i }),
+    ).not.toHaveLength(0);
+  });
+
   it("creates an event from a single calendar-cell click", async () => {
     const created: ProductEvent = {
       id: "event-1",
