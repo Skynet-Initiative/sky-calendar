@@ -10,6 +10,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type ReactNode,
 } from "react";
 import { rrulestr } from "rrule";
 import { eventsToCsv } from "../export/csv-export";
@@ -36,9 +37,15 @@ export interface SkyCalendarWorkspaceProps {
   timeZone?: string;
   locale?: string;
   onError?: (error: unknown) => void;
+  renderEventComposer?: (
+    props: SkyCalendarEventComposerRenderProps,
+  ) => ReactNode;
+  renderCalendarComposer?: (
+    props: SkyCalendarCalendarComposerRenderProps,
+  ) => ReactNode;
 }
 
-interface Draft {
+export interface SkyCalendarEventDraft {
   id: string | null;
   calendarId: string;
   title: string;
@@ -52,6 +59,34 @@ interface Draft {
   timeZone: string;
   occurrenceStart: string | null;
   scope: "occurrence" | "series";
+}
+
+export type SkyCalendarEventDraftField = Exclude<
+  keyof SkyCalendarEventDraft,
+  "id" | "occurrenceStart" | "timeZone"
+>;
+
+export interface SkyCalendarEventComposerRenderProps {
+  calendars: readonly ProductCalendar[];
+  draft: Readonly<SkyCalendarEventDraft>;
+  error: string;
+  saving: boolean;
+  scheduleLabel: string;
+  onChange: <Field extends SkyCalendarEventDraftField>(
+    field: Field,
+    value: SkyCalendarEventDraft[Field],
+  ) => void;
+  onClose: () => void;
+  onDelete: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}
+
+export interface SkyCalendarCalendarComposerRenderProps {
+  name: string;
+  saving: boolean;
+  onChange: (name: string) => void;
+  onClose: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }
 
 interface DisplayEvent extends ProductEvent {
@@ -68,6 +103,8 @@ export function SkyCalendarWorkspace({
   timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
   locale,
   onError,
+  renderEventComposer,
+  renderCalendarComposer,
 }: SkyCalendarWorkspaceProps) {
   const [view, setView] = useState<View>("month");
   const [cursor, setCursor] = useState(() =>
@@ -75,7 +112,7 @@ export function SkyCalendarWorkspace({
   );
   const [calendars, setCalendars] = useState<ProductCalendar[]>([]);
   const [events, setEvents] = useState<ProductEvent[]>([]);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draft, setDraft] = useState<SkyCalendarEventDraft | null>(null);
   const [draftError, setDraftError] = useState("");
   const [calendarDraft, setCalendarDraft] = useState("");
   const [calendarComposerOpen, setCalendarComposerOpen] = useState(false);
@@ -123,19 +160,22 @@ export function SkyCalendarWorkspace({
   }, [onError, period.from, period.to, reloadKey, transport]);
 
   useEffect(() => {
-    if (!draftOpen && !calendarComposerOpen) return;
+    const defaultDraftOpen = draftOpen && !renderEventComposer;
+    const defaultCalendarComposerOpen =
+      calendarComposerOpen && !renderCalendarComposer;
+    if (!defaultDraftOpen && !defaultCalendarComposerOpen) return;
 
     function handleOutsidePointer(event: PointerEvent) {
       if (!(event.target instanceof Node)) return;
       if (
-        draftOpen &&
+        defaultDraftOpen &&
         !draftComposerRef.current?.contains(event.target) &&
         !draftOpenerRef.current?.contains(event.target)
       ) {
         setDraft(null);
       }
       if (
-        calendarComposerOpen &&
+        defaultCalendarComposerOpen &&
         !calendarComposerRef.current?.contains(event.target) &&
         !calendarOpenerRef.current?.contains(event.target)
       ) {
@@ -146,7 +186,12 @@ export function SkyCalendarWorkspace({
     document.addEventListener("pointerdown", handleOutsidePointer);
     return () =>
       document.removeEventListener("pointerdown", handleOutsidePointer);
-  }, [calendarComposerOpen, draftOpen]);
+  }, [
+    calendarComposerOpen,
+    draftOpen,
+    renderCalendarComposer,
+    renderEventComposer,
+  ]);
 
   function report(error: unknown, fallback: string) {
     setMessage(fallback);
@@ -316,13 +361,21 @@ export function SkyCalendarWorkspace({
     >,
   ) {
     const target = event.currentTarget;
+    changeDraft(
+      target.name as SkyCalendarEventDraftField,
+      target instanceof HTMLInputElement && target.type === "checkbox"
+        ? target.checked
+        : target.value,
+    );
+  }
+
+  function changeDraft<Field extends SkyCalendarEventDraftField>(
+    field: Field,
+    value: SkyCalendarEventDraft[Field],
+  ) {
     setDraft((current) => {
       if (!current) return current;
-      const value =
-        target instanceof HTMLInputElement && target.type === "checkbox"
-          ? target.checked
-          : target.value;
-      return { ...current, [target.name]: value };
+      return { ...current, [field]: value };
     });
   }
 
@@ -672,7 +725,20 @@ export function SkyCalendarWorkspace({
           onEventClick={handleEventClick}
         />
       ) : null}
-      {draft ? (
+      {draft && renderEventComposer
+        ? renderEventComposer({
+            calendars,
+            draft,
+            error: draftError,
+            saving,
+            scheduleLabel: draftScheduleLabel(draft, locale),
+            onChange: changeDraft,
+            onClose: closeDraft,
+            onDelete: deleteDraft,
+            onSubmit: saveDraft,
+          })
+        : null}
+      {draft && !renderEventComposer ? (
         <aside
           className="skycal__composer"
           ref={draftComposerRef}
@@ -857,7 +923,16 @@ export function SkyCalendarWorkspace({
           </form>
         </aside>
       ) : null}
-      {calendarComposerOpen ? (
+      {calendarComposerOpen && renderCalendarComposer
+        ? renderCalendarComposer({
+            name: calendarDraft,
+            saving,
+            onChange: setCalendarDraft,
+            onClose: closeCalendarComposer,
+            onSubmit: saveCalendar,
+          })
+        : null}
+      {calendarComposerOpen && !renderCalendarComposer ? (
         <aside
           className="skycal__composer skycal__composer--calendar"
           ref={calendarComposerRef}
@@ -1146,7 +1221,10 @@ function Agenda({
   );
 }
 
-function draftScheduleLabel(draft: Draft, locale?: string): string {
+function draftScheduleLabel(
+  draft: SkyCalendarEventDraft,
+  locale?: string,
+): string {
   const start = new Date(`${draft.start}Z`);
   const end = new Date(`${draft.end}Z`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
@@ -1174,7 +1252,7 @@ function draftScheduleLabel(draft: Draft, locale?: string): string {
   return `${startDate} · ${timeFormatter.format(start)}–${timeFormatter.format(end)}`;
 }
 
-function draftInput(draft: Draft): ProductEventInput {
+function draftInput(draft: SkyCalendarEventDraft): ProductEventInput {
   const attendees = draft.attendees
     .split(",")
     .map((email) => email.trim())

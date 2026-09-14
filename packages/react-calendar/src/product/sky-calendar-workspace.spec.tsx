@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { SkyCalendarWorkspace } from "./sky-calendar-workspace";
+import {
+  SkyCalendarWorkspace,
+  type SkyCalendarCalendarComposerRenderProps,
+  type SkyCalendarEventComposerRenderProps,
+} from "./sky-calendar-workspace";
 import type {
   ProductCalendar,
   ProductEvent,
@@ -14,7 +18,81 @@ const calendar: ProductCalendar = {
   timeZone: "UTC",
 };
 
+function TestEventComposer(props: SkyCalendarEventComposerRenderProps) {
+  return (
+    <section aria-label="Host event panel">
+      <span>{props.scheduleLabel}</span>
+      <button type="button" onClick={props.onClose}>
+        Close host event panel
+      </button>
+    </section>
+  );
+}
+
+function TestCalendarComposer(props: SkyCalendarCalendarComposerRenderProps) {
+  return (
+    <section aria-label="Host calendar panel">
+      <button type="button" onClick={props.onClose}>
+        Close host calendar panel
+      </button>
+    </section>
+  );
+}
+
+function renderTestEventComposer(props: SkyCalendarEventComposerRenderProps) {
+  return <TestEventComposer {...props} />;
+}
+
+function renderTestCalendarComposer(
+  props: SkyCalendarCalendarComposerRenderProps,
+) {
+  return <TestCalendarComposer {...props} />;
+}
+
 describe("SkyCalendarWorkspace", () => {
+  it("delegates composer presentation to the host application", async () => {
+    const transport: SkyCalendarTransport = {
+      listCalendars: vi.fn().mockResolvedValue([calendar]),
+      createCalendar: vi.fn(),
+      listEvents: vi.fn().mockResolvedValue([]),
+      exportEvents: vi.fn(),
+      createEvent: vi.fn(),
+      replaceEvent: vi.fn(),
+      deleteEvent: vi.fn(),
+    };
+
+    render(
+      <SkyCalendarWorkspace
+        transport={transport}
+        timeZone="UTC"
+        locale="en"
+        renderEventComposer={renderTestEventComposer}
+        renderCalendarComposer={renderTestCalendarComposer}
+      />,
+    );
+    const [day] = await screen.findAllByRole("button", {
+      name: /create event on/i,
+    });
+    if (!day) throw new Error("month view did not expose a day target");
+
+    fireEvent.click(day);
+    expect(
+      screen.getByRole("region", { name: "Host event panel" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close host event panel" }),
+    );
+    expect(
+      screen.queryByRole("region", { name: "Host event panel" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "New calendar" }));
+    expect(
+      screen.getByRole("region", { name: "Host calendar panel" }),
+    ).toBeTruthy();
+  });
+
   it("offers a real retry after an initial loading failure", async () => {
     const listCalendars = vi
       .fn()

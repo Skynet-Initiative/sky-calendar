@@ -1,5 +1,9 @@
 export {
   SkyCalendarWorkspace,
+  type SkyCalendarCalendarComposerRenderProps,
+  type SkyCalendarEventComposerRenderProps,
+  type SkyCalendarEventDraft,
+  type SkyCalendarEventDraftField,
   type SkyCalendarWorkspaceProps,
 } from "./sky-calendar-workspace";
 export {
