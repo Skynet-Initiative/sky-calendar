@@ -629,9 +629,7 @@ export function SkyCalendarWorkspace({
   return (
     <section className="skycal" aria-labelledby="skycal-title">
       <header className="skycal__header">
-        <div>
-          <h1 id="skycal-title">{title}</h1>
-        </div>
+        <h1 id="skycal-title">{title}</h1>
         <div className="skycal__primary-actions">
           <button
             className="skycal__button skycal__button--primary"
@@ -685,7 +683,12 @@ export function SkyCalendarWorkspace({
           >
             ‹
           </button>
-          <button className="skycal__button" type="button" onClick={today}>
+          <button
+            className="skycal__button"
+            type="button"
+            onClick={today}
+            hidden={new Date() >= period.from && new Date() < period.to}
+          >
             Today
           </button>
           <button

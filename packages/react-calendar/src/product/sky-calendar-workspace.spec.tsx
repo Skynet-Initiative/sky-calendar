@@ -198,8 +198,15 @@ describe("SkyCalendarWorkspace", () => {
     if (!day) throw new Error("month view did not expose a day target");
     const selectedDate = day.dataset.start?.slice(0, 10);
     if (!selectedDate) throw new Error("day target did not expose its date");
+    const selectedLabel = day
+      .getAttribute("aria-label")
+      ?.replace(/^Open | in day view$/g, "");
+    if (!selectedLabel) throw new Error("day target did not expose its label");
     fireEvent.click(day);
 
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      selectedLabel,
+    );
     expect(
       screen
         .getByRole("group", { name: "Time grid" })
@@ -209,7 +216,31 @@ describe("SkyCalendarWorkspace", () => {
       name: /New event,.*, 09:00/,
     });
     expect(selectedSlot?.dataset.start?.slice(0, 10)).toBe(selectedDate);
+    expect(screen.getByRole("button", { name: "Today" })).toBeTruthy();
     expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
+  });
+
+  it("does not offer a redundant Today action for the current period", async () => {
+    const transport: SkyCalendarTransport = {
+      listCalendars: vi.fn().mockResolvedValue([calendar]),
+      createCalendar: vi.fn(),
+      listEvents: vi.fn().mockResolvedValue([]),
+      exportEvents: vi.fn(),
+      createEvent: vi.fn(),
+      replaceEvent: vi.fn(),
+      deleteEvent: vi.fn(),
+    };
+
+    render(
+      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
+    );
+
+    await screen.findAllByRole("button", { name: /open .* in day view/i });
+    expect(screen.queryByRole("button", { name: "Today" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next period" }));
+    expect(screen.getByRole("button", { name: "Today" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    expect(screen.queryByRole("button", { name: "Today" })).toBeNull();
   });
 
   it("creates a timed draft from a dragged range in the week grid", async () => {
