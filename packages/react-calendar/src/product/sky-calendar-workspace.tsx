@@ -37,6 +37,7 @@ export interface SkyCalendarWorkspaceProps {
   timeZone?: string;
   locale?: string;
   onError?: (error: unknown) => void;
+  showSecondaryActions?: boolean;
   eventComposer?: ComponentType<SkyCalendarEventComposerRenderProps>;
   calendarComposer?: ComponentType<SkyCalendarCalendarComposerRenderProps>;
 }
@@ -99,6 +100,7 @@ export function SkyCalendarWorkspace({
   timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
   locale,
   onError,
+  showSecondaryActions = true,
   eventComposer: EventComposer,
   calendarComposer: CalendarComposer,
 }: SkyCalendarWorkspaceProps) {
@@ -597,31 +599,35 @@ export function SkyCalendarWorkspace({
           >
             New event
           </button>
-          <button
-            className="skycal__button"
-            type="button"
-            onClick={openCalendarComposer}
-          >
-            New calendar
-          </button>
-          <button
-            className="skycal__button"
-            type="button"
-            value="ics"
-            onClick={exportEvents}
-            disabled={saving}
-          >
-            Export ICS
-          </button>
-          <button
-            className="skycal__button"
-            type="button"
-            value="csv"
-            onClick={exportEvents}
-            disabled={saving}
-          >
-            Export CSV
-          </button>
+          {showSecondaryActions ? (
+            <>
+              <button
+                className="skycal__button"
+                type="button"
+                onClick={openCalendarComposer}
+              >
+                New calendar
+              </button>
+              <button
+                className="skycal__button"
+                type="button"
+                value="ics"
+                onClick={exportEvents}
+                disabled={saving}
+              >
+                Export ICS
+              </button>
+              <button
+                className="skycal__button"
+                type="button"
+                value="csv"
+                onClick={exportEvents}
+                disabled={saving}
+              >
+                Export CSV
+              </button>
+            </>
+          ) : null}
         </div>
       </header>
       <div className="skycal__toolbar" aria-label="Calendar controls">

@@ -40,6 +40,32 @@ function TestCalendarComposer(props: SkyCalendarCalendarComposerRenderProps) {
 }
 
 describe("SkyCalendarWorkspace", () => {
+  it("can keep secondary calendar actions out of a host interface", async () => {
+    const transport: SkyCalendarTransport = {
+      listCalendars: vi.fn().mockResolvedValue([calendar]),
+      createCalendar: vi.fn(),
+      listEvents: vi.fn().mockResolvedValue([]),
+      exportEvents: vi.fn(),
+      createEvent: vi.fn(),
+      replaceEvent: vi.fn(),
+      deleteEvent: vi.fn(),
+    };
+
+    render(
+      <SkyCalendarWorkspace
+        transport={transport}
+        timeZone="UTC"
+        locale="en"
+        showSecondaryActions={false}
+      />,
+    );
+
+    await screen.findByRole("button", { name: "New event" });
+    expect(screen.queryByRole("button", { name: "New calendar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export ICS" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
+  });
+
   it("delegates composer presentation to the host application", async () => {
     const transport: SkyCalendarTransport = {
       listCalendars: vi.fn().mockResolvedValue([calendar]),
