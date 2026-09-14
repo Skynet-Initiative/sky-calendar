@@ -732,7 +732,7 @@ export function SkyCalendarWorkspace({
           events={displayEvents}
           locale={locale}
           timeZone={timeZone}
-          draftOpen={draftOpen}
+          draft={draft}
           onSlotClick={handleSlotClick}
           onEventClick={handleEventClick}
           onDragStart={handleDragStart}
@@ -1087,19 +1087,40 @@ function Month({
   );
 }
 
+function timeRangeSelectionFromDraft(
+  draft: SkyCalendarEventDraft | null,
+): TimeRangeSelection | null {
+  if (!draft || draft.id || draft.allDay) return null;
+  const start = Date.parse(`${draft.start}Z`);
+  const end = Date.parse(`${draft.end}Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return null;
+  }
+  const firstSlot = Math.floor(start / HOUR_MS) * HOUR_MS;
+  const lastSlot = Math.max(
+    firstSlot,
+    Math.ceil(end / HOUR_MS) * HOUR_MS - HOUR_MS,
+  );
+  return {
+    anchor: new Date(firstSlot).toISOString(),
+    current: new Date(lastSlot).toISOString(),
+    active: false,
+  };
+}
+
 function TimeGrid({
   days,
   events,
   locale,
   timeZone,
-  draftOpen,
+  draft,
   ...handlers
 }: {
   days: Date[];
   events: DisplayEvent[];
   locale?: string;
   timeZone: string;
-  draftOpen: boolean;
+  draft: SkyCalendarEventDraft | null;
 } & TimeGridHandlers) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -1107,7 +1128,9 @@ function TimeGrid({
   const selectionRef = useRef<TimeRangeSelection | null>(null);
   const suppressNextClickRef = useRef(false);
   const [selection, setSelection] = useState<TimeRangeSelection | null>(null);
-  const visibleSelection = selection?.active || draftOpen ? selection : null;
+  const visibleSelection = selection?.active
+    ? selection
+    : timeRangeSelectionFromDraft(draft);
 
   function slotAtPoint(
     clientX: number,

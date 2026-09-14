@@ -259,6 +259,10 @@ describe("SkyCalendarWorkspace", () => {
     expect((screen.getByLabelText("Ends") as HTMLInputElement).value).toBe(
       `${selectedDate}T12:00`,
     );
+    fireEvent.change(screen.getByLabelText("Ends"), {
+      target: { value: `${selectedDate}T13:00` },
+    });
+    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(4);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(0);
   });
