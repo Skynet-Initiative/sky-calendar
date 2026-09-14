@@ -206,7 +206,7 @@ describe("SkyCalendarWorkspace", () => {
         .getAttribute("data-days"),
     ).toBe("1");
     const [selectedSlot] = screen.getAllByRole("button", {
-      name: "Create event at 09:00",
+      name: /New event,.*, 09:00/,
     });
     expect(selectedSlot?.dataset.start?.slice(0, 10)).toBe(selectedDate);
     expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
@@ -231,13 +231,13 @@ describe("SkyCalendarWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Week" }));
 
     const start = screen.getAllByRole("button", {
-      name: "Create event at 09:15",
+      name: /New event,.*, 09:15/,
     })[0];
     const end = screen.getAllByRole("button", {
-      name: "Create event at 09:30",
+      name: /New event,.*, 09:30/,
     })[0];
     const midnight = screen.getAllByRole("button", {
-      name: "Create event at 00:00",
+      name: /New event,.*, 00:00/,
     })[0];
     const grid = screen.getByRole("group", { name: "Time grid" });
     if (!start || !end || !midnight) {
@@ -327,6 +327,45 @@ describe("SkyCalendarWorkspace", () => {
         0,
       ),
     );
+  });
+
+  it("navigates quarter-hour slots and days with the keyboard", async () => {
+    const listEvents = vi.fn().mockResolvedValue([]);
+    const transport: SkyCalendarTransport = {
+      listCalendars: vi.fn().mockResolvedValue([calendar]),
+      createCalendar: vi.fn(),
+      listEvents,
+      exportEvents: vi.fn(),
+      createEvent: vi.fn(),
+      replaceEvent: vi.fn(),
+      deleteEvent: vi.fn(),
+    };
+
+    render(
+      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
+    );
+    await screen.findAllByRole("button", { name: /open .* in day view/i });
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+    await waitFor(() => expect(listEvents).toHaveBeenCalledTimes(2));
+
+    const [start] = screen.getAllByRole("button", {
+      name: /New event,.*, 09:15/,
+    });
+    const [nextQuarter] = screen.getAllByRole("button", {
+      name: /New event,.*, 09:30/,
+    });
+    const [, nextQuarterDay] = screen.getAllByRole("button", {
+      name: /New event,.*, 09:30/,
+    });
+    if (!start || !nextQuarter || !nextQuarterDay) {
+      throw new Error("week grid did not expose keyboard destinations");
+    }
+
+    start.focus();
+    fireEvent.keyDown(start, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(nextQuarter);
+    fireEvent.keyDown(nextQuarter, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(nextQuarterDay);
   });
 
   it("closes the date composer with Escape and restores focus", async () => {

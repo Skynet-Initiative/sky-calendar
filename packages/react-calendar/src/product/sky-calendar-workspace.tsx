@@ -671,7 +671,11 @@ export function SkyCalendarWorkspace({
           ) : null}
         </div>
       </header>
-      <div className="skycal__toolbar" aria-label="Calendar controls">
+      <div
+        className="skycal__toolbar"
+        role="toolbar"
+        aria-label="Calendar controls"
+      >
         <div className="skycal__button-group">
           <button
             className="skycal__icon-button"
@@ -693,7 +697,11 @@ export function SkyCalendarWorkspace({
             ›
           </button>
         </div>
-        <div className="skycal__button-group" aria-label="View">
+        <div
+          className="skycal__button-group"
+          role="group"
+          aria-label="Calendar view"
+        >
           {VIEWS.map((item) => (
             <button
               className="skycal__button"
@@ -1283,6 +1291,25 @@ function TimeGrid({
     handlers.onSlotClick(event);
   }
 
+  function handleSlotKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const grid = gridRef.current;
+    const start = event.currentTarget.dataset.start;
+    if (!grid || !start) return;
+    let offset: number;
+    if (event.key === "ArrowUp") offset = -SLOT_MS;
+    else if (event.key === "ArrowDown") offset = SLOT_MS;
+    else if (event.key === "ArrowLeft") offset = -DAY_MS;
+    else if (event.key === "ArrowRight") offset = DAY_MS;
+    else return;
+    const target = new Date(Date.parse(start) + offset).toISOString();
+    const nextSlot = grid.querySelector<HTMLButtonElement>(
+      `.skycal__slot-target[data-start="${target}"]`,
+    );
+    if (!nextSlot) return;
+    event.preventDefault();
+    nextSlot.focus();
+  }
+
   return (
     <div className="skycal__time-scroll">
       <div
@@ -1309,8 +1336,10 @@ function TimeGrid({
             events={events}
             key={minutes}
             handlers={handlers}
+            locale={locale}
             selection={visibleSelection}
             onSlotClick={handleSlotClick}
+            onSlotKeyDown={handleSlotKeyDown}
             onSlotPointerDown={handleSlotPointerDown}
             timeZone={timeZone}
           />
@@ -1325,8 +1354,10 @@ function TimeSlot({
   days,
   events,
   handlers,
+  locale,
   selection,
   onSlotClick,
+  onSlotKeyDown,
   onSlotPointerDown,
   timeZone,
 }: {
@@ -1334,8 +1365,10 @@ function TimeSlot({
   days: Date[];
   events: DisplayEvent[];
   handlers: TimeGridHandlers;
+  locale?: string;
   selection: TimeRangeSelection | null;
   onSlotClick: (event: MouseEvent<HTMLButtonElement>) => void;
+  onSlotKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
   onSlotPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   timeZone: string;
 }) {
@@ -1348,6 +1381,7 @@ function TimeSlot({
       <div
         className="skycal__hour"
         data-hour-end={hourEnd ? "true" : undefined}
+        aria-hidden="true"
       >
         {minute === 0 ? label : null}
       </div>
@@ -1407,8 +1441,9 @@ function TimeSlot({
               type="button"
               data-start={start.toISOString()}
               onClick={onSlotClick}
+              onKeyDown={onSlotKeyDown}
               onPointerDown={onSlotPointerDown}
-              aria-label={`Create event at ${label}`}
+              aria-label={`New event, ${formatDay(day, locale)}, ${label}`}
             />
             {rangePosition ? (
               <span
