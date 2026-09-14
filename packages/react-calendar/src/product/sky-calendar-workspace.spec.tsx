@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SkyCalendarWorkspace } from "./sky-calendar-workspace";
 import type {
   ProductCalendar,
@@ -13,15 +13,6 @@ const calendar: ProductCalendar = {
   color: "#2563eb",
   timeZone: "UTC",
 };
-
-beforeAll(() => {
-  HTMLDialogElement.prototype.showModal = function showModal() {
-    this.setAttribute("open", "");
-  };
-  HTMLDialogElement.prototype.close = function close() {
-    this.removeAttribute("open");
-  };
-});
 
 describe("SkyCalendarWorkspace", () => {
   it("offers a real retry after an initial loading failure", async () => {
@@ -92,7 +83,16 @@ describe("SkyCalendarWorkspace", () => {
     });
     expect(day).toBeDefined();
     if (!day) throw new Error("month view did not expose a day target");
+    const selectedDate = day.dataset.start?.slice(0, 10);
+    if (!selectedDate) throw new Error("day target did not expose its date");
     fireEvent.click(day);
+    const composer = screen.getByRole("dialog", { name: "New event" });
+    expect(composer.getAttribute("aria-modal")).toBe("false");
+    expect(document.querySelector("dialog")).toBeNull();
+    expect(screen.getAllByText(/All day/u)).not.toHaveLength(0);
+    expect((screen.getByLabelText("Starts") as HTMLInputElement).value).toBe(
+      `${selectedDate}T00:00`,
+    );
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Planning" },
     });
@@ -103,6 +103,33 @@ describe("SkyCalendarWorkspace", () => {
       calendar.id,
       expect.objectContaining({ title: "Planning", allDay: true }),
     );
+  });
+
+  it("closes the date composer with Escape and restores focus", async () => {
+    const transport: SkyCalendarTransport = {
+      listCalendars: vi.fn().mockResolvedValue([calendar]),
+      createCalendar: vi.fn(),
+      listEvents: vi.fn().mockResolvedValue([]),
+      exportEvents: vi.fn(),
+      createEvent: vi.fn(),
+      replaceEvent: vi.fn(),
+      deleteEvent: vi.fn(),
+    };
+
+    render(
+      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
+    );
+    const [day] = await screen.findAllByRole("button", {
+      name: /create event on/i,
+    });
+    if (!day) throw new Error("month view did not expose a day target");
+    fireEvent.click(day);
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "New event" }), {
+      key: "Escape",
+    });
+
+    expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
+    expect(document.activeElement).toBe(day);
   });
 
   it("renders bounded recurrence instances in the visible period", async () => {

@@ -2,6 +2,7 @@
   --skycal-border: var(--card-border, var(--border, #d9dde5));
   --skycal-bg: var(--background, #fff);
   --skycal-card: var(--card, var(--skycal-bg));
+  --skycal-popover: var(--popover, var(--skycal-bg));
   --skycal-hover: var(--card-hover, var(--accent, #f4f5f7));
   --skycal-subtle: var(--muted, #f4f5f7);
   --skycal-text: var(--foreground, #16181d);
@@ -11,6 +12,8 @@
   --skycal-danger: var(--destructive-foreground, #b42318);
   --skycal-ring: var(--ring, var(--skycal-primary));
   min-width: 0;
+  position: relative;
+  isolation: isolate;
   padding: clamp(0.75rem, 2vw, 1.25rem);
   border: 1px solid var(--skycal-border);
   border-radius: 1rem;
@@ -41,7 +44,7 @@
 .skycal__toolbar,
 .skycal__primary-actions,
 .skycal__button-group,
-.skycal__dialog-heading,
+.skycal__composer-heading,
 .skycal__form-actions,
 .skycal__form-row {
   display: flex;
@@ -201,6 +204,9 @@
   z-index: 0;
   text-align: right;
 }
+.skycal__day-target:hover {
+  background: var(--skycal-hover);
+}
 .skycal__day-target time {
   position: absolute;
   top: 0.35rem;
@@ -349,31 +355,39 @@
   color: var(--skycal-muted);
   font-size: 0.875rem;
 }
-.skycal__dialog {
-  width: min(34rem, calc(100% - 2rem));
-  max-height: calc(100vh - 2rem);
-  padding: 0;
-  overflow: auto;
+.skycal__composer {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: 6.75rem;
+  inset-inline-end: 1.25rem;
+  width: min(27rem, calc(100% - 2.5rem));
+  max-height: calc(100% - 8rem);
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid var(--skycal-border);
-  border-radius: 1rem;
-  background: var(--skycal-card);
+  border-radius: 0.875rem;
+  background: var(--skycal-popover);
   color: var(--skycal-text);
-  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 0.2);
+  box-shadow:
+    0 1rem 2.5rem rgb(0 0 0 / 0.18),
+    0 0.25rem 0.75rem rgb(0 0 0 / 0.08);
 }
-.skycal__dialog::backdrop {
-  background: rgb(0 0 0 / 0.4);
+.skycal__composer--calendar {
+  width: min(23rem, calc(100% - 2.5rem));
 }
 .skycal__form {
   display: grid;
-  gap: 1rem;
-  padding: 1.25rem;
+  min-width: 0;
+  gap: 0.875rem;
+  padding: 1rem;
 }
-.skycal__dialog-heading {
+.skycal__composer-heading {
   justify-content: space-between;
+  min-height: 2.75rem;
 }
-.skycal__dialog-heading h2 {
+.skycal__composer-heading h2 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   letter-spacing: -0.015em;
 }
 .skycal__form-row {
@@ -382,9 +396,11 @@
 }
 .skycal__form-row > * {
   flex: 1;
+  min-width: 0;
 }
 .skycal__field {
   display: grid;
+  min-width: 0;
   gap: 0.35rem;
   color: var(--skycal-muted);
   font-size: 0.875rem;
@@ -395,10 +411,20 @@
   color: var(--skycal-muted);
   font-size: 0.8125rem;
 }
+.skycal__schedule {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: 0.625rem;
+  background: var(--skycal-subtle);
+  font-size: 0.9375rem;
+  font-weight: 550;
+}
 .skycal__field input,
 .skycal__field select,
 .skycal__field textarea {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 2.75rem;
   padding: 0.6rem 0.7rem;
   border: 1px solid var(--skycal-border);
@@ -406,6 +432,14 @@
   background: var(--skycal-card);
   color: var(--skycal-text);
   font-size: 1rem;
+}
+.skycal__field--wide input {
+  padding-inline: 0;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  background: transparent;
+  font-size: 1.125rem;
+  font-weight: 600;
 }
 .skycal__form-error {
   margin: 0;
@@ -442,6 +476,7 @@
   gap: 0.8rem;
 }
 .skycal__form-actions {
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
 }
@@ -485,6 +520,14 @@
   }
   .skycal__event time {
     display: none;
+  }
+  .skycal__composer,
+  .skycal__composer--calendar {
+    position: fixed;
+    inset: auto 0.5rem 0.5rem;
+    width: auto;
+    max-height: calc(100dvh - 1rem);
+    border-radius: 1rem;
   }
   .skycal__form-row {
     align-items: stretch;
