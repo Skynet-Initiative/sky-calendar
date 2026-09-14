@@ -6,11 +6,11 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ComponentType,
   type DragEvent,
   type FormEvent,
   type KeyboardEvent,
   type MouseEvent,
-  type ReactNode,
 } from "react";
 import { rrulestr } from "rrule";
 import { eventsToCsv } from "../export/csv-export";
@@ -37,12 +37,8 @@ export interface SkyCalendarWorkspaceProps {
   timeZone?: string;
   locale?: string;
   onError?: (error: unknown) => void;
-  renderEventComposer?: (
-    props: SkyCalendarEventComposerRenderProps,
-  ) => ReactNode;
-  renderCalendarComposer?: (
-    props: SkyCalendarCalendarComposerRenderProps,
-  ) => ReactNode;
+  eventComposer?: ComponentType<SkyCalendarEventComposerRenderProps>;
+  calendarComposer?: ComponentType<SkyCalendarCalendarComposerRenderProps>;
 }
 
 export interface SkyCalendarEventDraft {
@@ -103,8 +99,8 @@ export function SkyCalendarWorkspace({
   timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
   locale,
   onError,
-  renderEventComposer,
-  renderCalendarComposer,
+  eventComposer: EventComposer,
+  calendarComposer: CalendarComposer,
 }: SkyCalendarWorkspaceProps) {
   const [view, setView] = useState<View>("month");
   const [cursor, setCursor] = useState(() =>
@@ -160,9 +156,9 @@ export function SkyCalendarWorkspace({
   }, [onError, period.from, period.to, reloadKey, transport]);
 
   useEffect(() => {
-    const defaultDraftOpen = draftOpen && !renderEventComposer;
+    const defaultDraftOpen = draftOpen && !EventComposer;
     const defaultCalendarComposerOpen =
-      calendarComposerOpen && !renderCalendarComposer;
+      calendarComposerOpen && !CalendarComposer;
     if (!defaultDraftOpen && !defaultCalendarComposerOpen) return;
 
     function handleOutsidePointer(event: PointerEvent) {
@@ -186,12 +182,7 @@ export function SkyCalendarWorkspace({
     document.addEventListener("pointerdown", handleOutsidePointer);
     return () =>
       document.removeEventListener("pointerdown", handleOutsidePointer);
-  }, [
-    calendarComposerOpen,
-    draftOpen,
-    renderCalendarComposer,
-    renderEventComposer,
-  ]);
+  }, [calendarComposerOpen, draftOpen, CalendarComposer, EventComposer]);
 
   function report(error: unknown, fallback: string) {
     setMessage(fallback);
@@ -725,20 +716,20 @@ export function SkyCalendarWorkspace({
           onEventClick={handleEventClick}
         />
       ) : null}
-      {draft && renderEventComposer
-        ? renderEventComposer({
-            calendars,
-            draft,
-            error: draftError,
-            saving,
-            scheduleLabel: draftScheduleLabel(draft, locale),
-            onChange: changeDraft,
-            onClose: closeDraft,
-            onDelete: deleteDraft,
-            onSubmit: saveDraft,
-          })
-        : null}
-      {draft && !renderEventComposer ? (
+      {draft && EventComposer ? (
+        <EventComposer
+          calendars={calendars}
+          draft={draft}
+          error={draftError}
+          saving={saving}
+          scheduleLabel={draftScheduleLabel(draft, locale)}
+          onChange={changeDraft}
+          onClose={closeDraft}
+          onDelete={deleteDraft}
+          onSubmit={saveDraft}
+        />
+      ) : null}
+      {draft && !EventComposer ? (
         <aside
           className="skycal__composer"
           ref={draftComposerRef}
@@ -923,16 +914,16 @@ export function SkyCalendarWorkspace({
           </form>
         </aside>
       ) : null}
-      {calendarComposerOpen && renderCalendarComposer
-        ? renderCalendarComposer({
-            name: calendarDraft,
-            saving,
-            onChange: setCalendarDraft,
-            onClose: closeCalendarComposer,
-            onSubmit: saveCalendar,
-          })
-        : null}
-      {calendarComposerOpen && !renderCalendarComposer ? (
+      {calendarComposerOpen && CalendarComposer ? (
+        <CalendarComposer
+          name={calendarDraft}
+          saving={saving}
+          onChange={setCalendarDraft}
+          onClose={closeCalendarComposer}
+          onSubmit={saveCalendar}
+        />
+      ) : null}
+      {calendarComposerOpen && !CalendarComposer ? (
         <aside
           className="skycal__composer skycal__composer--calendar"
           ref={calendarComposerRef}

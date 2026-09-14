@@ -39,16 +39,6 @@ function TestCalendarComposer(props: SkyCalendarCalendarComposerRenderProps) {
   );
 }
 
-function renderTestEventComposer(props: SkyCalendarEventComposerRenderProps) {
-  return <TestEventComposer {...props} />;
-}
-
-function renderTestCalendarComposer(
-  props: SkyCalendarCalendarComposerRenderProps,
-) {
-  return <TestCalendarComposer {...props} />;
-}
-
 describe("SkyCalendarWorkspace", () => {
   it("delegates composer presentation to the host application", async () => {
     const transport: SkyCalendarTransport = {
@@ -66,8 +56,8 @@ describe("SkyCalendarWorkspace", () => {
         transport={transport}
         timeZone="UTC"
         locale="en"
-        renderEventComposer={renderTestEventComposer}
-        renderCalendarComposer={renderTestCalendarComposer}
+        eventComposer={TestEventComposer}
+        calendarComposer={TestCalendarComposer}
       />,
     );
     const [day] = await screen.findAllByRole("button", {
