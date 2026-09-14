@@ -281,6 +281,9 @@
   min-width: 22rem;
   grid-template-columns: 4rem minmax(16rem, 1fr);
 }
+.skycal__time-grid[data-range-active="true"] {
+  user-select: none;
+}
 .skycal__time-corner,
 .skycal__time-day {
   position: sticky;
@@ -311,6 +314,10 @@
   padding: 0.2rem;
   border-right: 1px solid var(--skycal-border);
   border-bottom: 1px solid var(--skycal-border);
+}
+.skycal__slot[data-range-selected="true"] {
+  background: color-mix(in srgb, var(--skycal-primary) 14%, var(--skycal-card));
+  box-shadow: inset 0.1875rem 0 var(--skycal-primary);
 }
 .skycal__slot .skycal__event {
   width: 100%;

@@ -18,6 +18,28 @@ const calendar: ProductCalendar = {
   timeZone: "UTC",
 };
 
+function firePointerEvent(
+  target: Element,
+  type: string,
+  init: {
+    button?: number;
+    clientX?: number;
+    clientY?: number;
+    pointerId: number;
+    pointerType: string;
+  },
+) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    button: { value: init.button ?? 0 },
+    clientX: { value: init.clientX ?? 0 },
+    clientY: { value: init.clientY ?? 0 },
+    pointerId: { value: init.pointerId },
+    pointerType: { value: init.pointerType },
+  });
+  fireEvent(target, event);
+}
+
 function TestEventComposer(props: SkyCalendarEventComposerRenderProps) {
   return (
     <section aria-label="Host event panel">
@@ -196,6 +218,69 @@ describe("SkyCalendarWorkspace", () => {
     expect(createEvent).toHaveBeenCalledWith(
       calendar.id,
       expect.objectContaining({ title: "Planning", allDay: true }),
+    );
+  });
+
+  it("creates a timed draft from a dragged range in the week grid", async () => {
+    const transport: SkyCalendarTransport = {
+      listCalendars: vi.fn().mockResolvedValue([calendar]),
+      createCalendar: vi.fn(),
+      listEvents: vi.fn().mockResolvedValue([]),
+      exportEvents: vi.fn(),
+      createEvent: vi.fn(),
+      replaceEvent: vi.fn(),
+      deleteEvent: vi.fn(),
+    };
+
+    render(
+      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
+    );
+    await screen.findAllByRole("button", { name: /create event on/i });
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+
+    const start = screen.getAllByRole("button", {
+      name: "Create event at 09:00",
+    })[0];
+    const end = screen.getAllByRole("button", {
+      name: "Create event at 11:00",
+    })[0];
+    const grid = screen.getByRole("group", { name: "Time grid" });
+    if (!start || !end) throw new Error("week grid did not expose time slots");
+    const selectedDate = start.dataset.start?.slice(0, 10);
+    if (!selectedDate) throw new Error("time slot did not expose its date");
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(end),
+    });
+
+    firePointerEvent(start, "pointerdown", {
+      button: 0,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
+    firePointerEvent(grid, "pointermove", {
+      clientX: 10,
+      clientY: 10,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
+    expect(
+      document.querySelectorAll('[data-range-selected="true"]'),
+    ).toHaveLength(3);
+    firePointerEvent(grid, "pointerup", {
+      clientX: 10,
+      clientY: 10,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
+    Reflect.deleteProperty(document, "elementFromPoint");
+
+    expect(screen.getByRole("dialog", { name: "New event" })).toBeTruthy();
+    expect((screen.getByLabelText("Starts") as HTMLInputElement).value).toBe(
+      `${selectedDate}T09:00`,
+    );
+    expect((screen.getByLabelText("Ends") as HTMLInputElement).value).toBe(
+      `${selectedDate}T12:00`,
     );
   });
 

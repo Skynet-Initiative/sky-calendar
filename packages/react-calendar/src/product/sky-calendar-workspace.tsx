@@ -11,6 +11,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { rrulestr } from "rrule";
 import { eventsToCsv } from "../export/csv-export";
@@ -88,6 +89,11 @@ export interface SkyCalendarCalendarComposerRenderProps {
 
 interface DisplayEvent extends ProductEvent {
   instanceKey: string;
+}
+
+interface TimeRangeSelection {
+  anchor: string;
+  current: string;
 }
 
 const DAY_MS = 86_400_000;
@@ -203,14 +209,14 @@ export function SkyCalendarWorkspace({
     return created;
   }
 
-  function openCreate(start: Date, allDay = false) {
+  function openCreate(start: Date, allDay = false, selectedEnd?: Date) {
     setCalendarComposerOpen(false);
     setDraftError("");
     const normalizedStart = allDay ? startOfDay(start) : start;
     const calendarId = calendars[0]?.id ?? "";
-    const end = new Date(
-      normalizedStart.getTime() + (allDay ? DAY_MS : HOUR_MS),
-    );
+    const end =
+      selectedEnd ??
+      new Date(normalizedStart.getTime() + (allDay ? DAY_MS : HOUR_MS));
     setDraft({
       id: null,
       calendarId,
@@ -286,6 +292,15 @@ export function SkyCalendarWorkspace({
         event.currentTarget.dataset.allDay === "true",
       );
     }
+  }
+
+  function handleTimeRangeSelect(
+    start: Date,
+    end: Date,
+    opener: HTMLButtonElement,
+  ) {
+    draftOpenerRef.current = opener;
+    openCreate(start, false, end);
   }
 
   function handleEventClick(event: MouseEvent<HTMLButtonElement>) {
@@ -712,6 +727,7 @@ export function SkyCalendarWorkspace({
           onDragStart={handleDragStart}
           onDragOver={allowDrop}
           onDrop={handleDrop}
+          onTimeRangeSelect={handleTimeRangeSelect}
         />
       ) : null}
       {!loading && !loadFailed && view === "agenda" ? (
@@ -991,6 +1007,14 @@ interface CalendarHandlers {
   onDrop: (event: DragEvent<HTMLElement>) => void;
 }
 
+interface TimeGridHandlers extends CalendarHandlers {
+  onTimeRangeSelect: (
+    start: Date,
+    end: Date,
+    opener: HTMLButtonElement,
+  ) => void;
+}
+
 function Month({
   days,
   events,
@@ -1063,14 +1087,111 @@ function TimeGrid({
   events: DisplayEvent[];
   locale?: string;
   timeZone: string;
-} & CalendarHandlers) {
+} & TimeGridHandlers) {
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const pointerIdRef = useRef<number | null>(null);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
+  const selectionRef = useRef<TimeRangeSelection | null>(null);
+  const suppressNextClickRef = useRef(false);
+  const [selection, setSelection] = useState<TimeRangeSelection | null>(null);
+
+  function slotAtPoint(
+    clientX: number,
+    clientY: number,
+  ): HTMLButtonElement | null {
+    const candidate = document
+      .elementFromPoint?.(clientX, clientY)
+      ?.closest<HTMLButtonElement>(".skycal__slot-target");
+    return candidate && gridRef.current?.contains(candidate) ? candidate : null;
+  }
+
+  function handleSlotPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0 || event.pointerType === "touch") return;
+    const start = event.currentTarget.dataset.start;
+    const grid = gridRef.current;
+    if (!start || !grid) return;
+    event.preventDefault();
+    pointerIdRef.current = event.pointerId;
+    openerRef.current = event.currentTarget;
+    const nextSelection = { anchor: start, current: start };
+    selectionRef.current = nextSelection;
+    setSelection(nextSelection);
+    grid.setPointerCapture?.(event.pointerId);
+  }
+
+  function handleGridPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (pointerIdRef.current !== event.pointerId) return;
+    const slot = slotAtPoint(event.clientX, event.clientY);
+    const current = slot?.dataset.start;
+    if (!current) return;
+    event.preventDefault();
+    const active = selectionRef.current;
+    if (!active) return;
+    const nextSelection = { ...active, current };
+    selectionRef.current = nextSelection;
+    setSelection(nextSelection);
+  }
+
+  function clearSelection() {
+    pointerIdRef.current = null;
+    openerRef.current = null;
+    selectionRef.current = null;
+    setSelection(null);
+  }
+
+  function handleGridPointerCancel() {
+    clearSelection();
+  }
+
+  function handleGridPointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    const active = selectionRef.current;
+    if (
+      pointerIdRef.current !== event.pointerId ||
+      !active ||
+      !openerRef.current
+    )
+      return;
+    event.preventDefault();
+    const pointedStart = slotAtPoint(event.clientX, event.clientY)?.dataset
+      .start;
+    const current = pointedStart ?? active.current;
+    const first = Math.min(Date.parse(active.anchor), Date.parse(current));
+    const last = Math.max(Date.parse(active.anchor), Date.parse(current));
+    const opener = openerRef.current;
+    suppressNextClickRef.current = true;
+    queueMicrotask(clearClickSuppression);
+    clearSelection();
+    handlers.onTimeRangeSelect(
+      new Date(first),
+      new Date(last + HOUR_MS),
+      opener,
+    );
+  }
+
+  function clearClickSuppression() {
+    suppressNextClickRef.current = false;
+  }
+
+  function handleSlotClick(event: MouseEvent<HTMLButtonElement>) {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
+      return;
+    }
+    handlers.onSlotClick(event);
+  }
+
   return (
     <div className="skycal__time-scroll">
       <div
+        ref={gridRef}
         className="skycal__time-grid"
         role="group"
         aria-label="Time grid"
         data-days={days.length}
+        data-range-active={selection ? "true" : undefined}
+        onPointerMove={handleGridPointerMove}
+        onPointerUp={handleGridPointerUp}
+        onPointerCancel={handleGridPointerCancel}
       >
         <div className="skycal__time-corner" />
         {days.map((day) => (
@@ -1085,6 +1206,9 @@ function TimeGrid({
             events={events}
             key={hour}
             handlers={handlers}
+            selection={selection}
+            onSlotClick={handleSlotClick}
+            onSlotPointerDown={handleSlotPointerDown}
             timeZone={timeZone}
           />
         ))}
@@ -1098,12 +1222,18 @@ function TimeRow({
   days,
   events,
   handlers,
+  selection,
+  onSlotClick,
+  onSlotPointerDown,
   timeZone,
 }: {
   hour: number;
   days: Date[];
   events: DisplayEvent[];
-  handlers: CalendarHandlers;
+  handlers: TimeGridHandlers;
+  selection: TimeRangeSelection | null;
+  onSlotClick: (event: MouseEvent<HTMLButtonElement>) => void;
+  onSlotPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   timeZone: string;
 }) {
   return (
@@ -1114,11 +1244,24 @@ function TimeRow({
         const items = events.filter((item) =>
           sameHour(wallDateFromInstant(new Date(item.start), timeZone), start),
         );
+        const selected = selection
+          ? start.getTime() >=
+              Math.min(
+                Date.parse(selection.anchor),
+                Date.parse(selection.current),
+              ) &&
+            start.getTime() <=
+              Math.max(
+                Date.parse(selection.anchor),
+                Date.parse(selection.current),
+              )
+          : false;
         return (
           <div
             className="skycal__slot"
             key={start.toISOString()}
             data-start={start.toISOString()}
+            data-range-selected={selected ? "true" : undefined}
             onDragOver={handlers.onDragOver}
             onDrop={handlers.onDrop}
           >
@@ -1126,7 +1269,8 @@ function TimeRow({
               className="skycal__slot-target"
               type="button"
               data-start={start.toISOString()}
-              onClick={handlers.onSlotClick}
+              onClick={onSlotClick}
+              onPointerDown={onSlotPointerDown}
               aria-label={`Create event at ${String(hour).padStart(2, "0")}:00`}
             />
             {items.map((item) => (
