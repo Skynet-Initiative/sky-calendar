@@ -97,6 +97,14 @@ interface TimeRangeSelection {
   active: boolean;
 }
 
+interface SlotHitArea {
+  element: HTMLButtonElement;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
@@ -1126,6 +1134,7 @@ function TimeGrid({
   const pointerIdRef = useRef<number | null>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
   const selectionRef = useRef<TimeRangeSelection | null>(null);
+  const slotHitAreasRef = useRef<SlotHitArea[]>([]);
   const suppressNextClickRef = useRef(false);
   const [selection, setSelection] = useState<TimeRangeSelection | null>(null);
   const visibleSelection = selection?.active
@@ -1136,10 +1145,44 @@ function TimeGrid({
     clientX: number,
     clientY: number,
   ): HTMLButtonElement | null {
+    let geometricMatch: SlotHitArea | undefined;
+    for (const area of slotHitAreasRef.current) {
+      if (
+        clientX < area.left ||
+        clientX > area.right ||
+        clientY < area.top ||
+        clientY > area.bottom
+      ) {
+        continue;
+      }
+      const size = (area.right - area.left) * (area.bottom - area.top);
+      const matchedSize = geometricMatch
+        ? (geometricMatch.right - geometricMatch.left) *
+          (geometricMatch.bottom - geometricMatch.top)
+        : Number.POSITIVE_INFINITY;
+      if (size < matchedSize) geometricMatch = area;
+    }
+    if (geometricMatch) return geometricMatch.element;
     const candidate = document
       .elementFromPoint?.(clientX, clientY)
       ?.closest<HTMLButtonElement>(".skycal__slot-target");
     return candidate && gridRef.current?.contains(candidate) ? candidate : null;
+  }
+
+  function captureSlotHitAreas(grid: HTMLDivElement) {
+    slotHitAreasRef.current = Array.from(
+      grid.querySelectorAll<HTMLButtonElement>(".skycal__slot-target"),
+      (element) => {
+        const bounds = element.getBoundingClientRect();
+        return {
+          element,
+          left: bounds.left,
+          right: bounds.right,
+          top: bounds.top,
+          bottom: bounds.bottom,
+        };
+      },
+    ).filter(({ left, right, top, bottom }) => right > left && bottom > top);
   }
 
   function handleSlotPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -1148,9 +1191,18 @@ function TimeGrid({
     const grid = gridRef.current;
     if (!start || !grid) return;
     event.preventDefault();
+    captureSlotHitAreas(grid);
+    const pointedSlot = slotAtPoint(event.clientX, event.clientY);
+    const opener = pointedSlot ?? event.currentTarget;
+    const resolvedStart = opener.dataset.start;
+    if (!resolvedStart) return;
     pointerIdRef.current = event.pointerId;
-    openerRef.current = event.currentTarget;
-    const nextSelection = { anchor: start, current: start, active: true };
+    openerRef.current = opener;
+    const nextSelection = {
+      anchor: resolvedStart,
+      current: resolvedStart,
+      active: true,
+    };
     selectionRef.current = nextSelection;
     setSelection(nextSelection);
     grid.setPointerCapture?.(event.pointerId);
@@ -1173,6 +1225,7 @@ function TimeGrid({
     pointerIdRef.current = null;
     openerRef.current = null;
     selectionRef.current = null;
+    slotHitAreasRef.current = [];
     setSelection(null);
   }
 
@@ -1200,6 +1253,7 @@ function TimeGrid({
     queueMicrotask(clearClickSuppression);
     pointerIdRef.current = null;
     openerRef.current = null;
+    slotHitAreasRef.current = [];
     selectionRef.current = completedSelection;
     setSelection(completedSelection);
     handlers.onTimeRangeSelect(

@@ -8,6 +8,7 @@ import {
 import type {
   ProductCalendar,
   ProductEvent,
+  ProductEventInput,
   SkyCalendarTransport,
 } from "./types";
 
@@ -17,6 +18,21 @@ const calendar: ProductCalendar = {
   color: "#2563eb",
   timeZone: "UTC",
 };
+
+function createProductEvent(
+  calendarId: string,
+  input: ProductEventInput,
+): Promise<ProductEvent> {
+  return Promise.resolve({
+    ...input,
+    id: "event-created",
+    calendarId,
+    description: input.description ?? null,
+    location: input.location ?? null,
+    recurrenceRule: input.recurrenceRule ?? null,
+    recurrenceExceptions: input.recurrenceExceptions ?? [],
+  });
+}
 
 function firePointerEvent(
   target: Element,
@@ -197,12 +213,13 @@ describe("SkyCalendarWorkspace", () => {
   });
 
   it("creates a timed draft from a dragged range in the week grid", async () => {
+    const createEvent = vi.fn(createProductEvent);
     const transport: SkyCalendarTransport = {
       listCalendars: vi.fn().mockResolvedValue([calendar]),
       createCalendar: vi.fn(),
       listEvents: vi.fn().mockResolvedValue([]),
       exportEvents: vi.fn(),
-      createEvent: vi.fn(),
+      createEvent,
       replaceEvent: vi.fn(),
       deleteEvent: vi.fn(),
     };
@@ -219,24 +236,52 @@ describe("SkyCalendarWorkspace", () => {
     const end = screen.getAllByRole("button", {
       name: "Create event at 11:00",
     })[0];
+    const midnight = screen.getAllByRole("button", {
+      name: "Create event at 00:00",
+    })[0];
     const grid = screen.getByRole("group", { name: "Time grid" });
-    if (!start || !end) throw new Error("week grid did not expose time slots");
+    if (!start || !end || !midnight) {
+      throw new Error("week grid did not expose time slots");
+    }
     const selectedDate = start.dataset.start?.slice(0, 10);
     if (!selectedDate) throw new Error("time slot did not expose its date");
-    Object.defineProperty(document, "elementFromPoint", {
-      configurable: true,
-      value: vi.fn().mockReturnValue(end),
+    vi.spyOn(start, "getBoundingClientRect").mockReturnValue({
+      bottom: 100,
+      height: 20,
+      left: 0,
+      right: 20,
+      top: 80,
+      width: 20,
+      x: 0,
+      y: 80,
+      toJSON: vi.fn(),
     });
-
-    firePointerEvent(start, "pointerdown", {
+    vi.spyOn(end, "getBoundingClientRect").mockReturnValue({
+      bottom: 140,
+      height: 20,
+      left: 0,
+      right: 20,
+      top: 120,
+      width: 20,
+      x: 0,
+      y: 120,
+      toJSON: vi.fn(),
+    });
+    firePointerEvent(midnight, "pointerdown", {
       button: 0,
+      clientX: 10,
+      clientY: 90,
       pointerId: 1,
       pointerType: "mouse",
     });
     expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(1);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(end),
+    });
     firePointerEvent(grid, "pointermove", {
       clientX: 10,
-      clientY: 10,
+      clientY: 130,
       pointerId: 1,
       pointerType: "mouse",
     });
@@ -245,7 +290,7 @@ describe("SkyCalendarWorkspace", () => {
     ).toHaveLength(3);
     firePointerEvent(grid, "pointerup", {
       clientX: 10,
-      clientY: 10,
+      clientY: 130,
       pointerId: 1,
       pointerType: "mouse",
     });
@@ -263,8 +308,25 @@ describe("SkyCalendarWorkspace", () => {
       target: { value: `${selectedDate}T13:00` },
     });
     expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(4);
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Selected range" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(createEvent).toHaveBeenCalledOnce());
+    expect(createEvent).toHaveBeenCalledWith(
+      calendar.id,
+      expect.objectContaining({
+        start: `${selectedDate}T09:00:00.000Z`,
+        end: `${selectedDate}T13:00:00.000Z`,
+        allDay: false,
+      }),
+    );
+    await waitFor(() =>
+      expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(
+        0,
+      ),
+    );
   });
 
   it("closes the date composer with Escape and restores focus", async () => {
