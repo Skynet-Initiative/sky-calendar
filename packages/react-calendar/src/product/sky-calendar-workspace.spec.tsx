@@ -231,10 +231,10 @@ describe("SkyCalendarWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Week" }));
 
     const start = screen.getAllByRole("button", {
-      name: "Create event at 09:00",
+      name: "Create event at 09:15",
     })[0];
     const end = screen.getAllByRole("button", {
-      name: "Create event at 11:00",
+      name: "Create event at 09:30",
     })[0];
     const midnight = screen.getAllByRole("button", {
       name: "Create event at 00:00",
@@ -287,7 +287,7 @@ describe("SkyCalendarWorkspace", () => {
     });
     expect(
       document.querySelectorAll('[data-range-selected="true"]'),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
     firePointerEvent(grid, "pointerup", {
       clientX: 10,
       clientY: 130,
@@ -297,17 +297,17 @@ describe("SkyCalendarWorkspace", () => {
     Reflect.deleteProperty(document, "elementFromPoint");
 
     expect(screen.getByRole("dialog", { name: "New event" })).toBeTruthy();
-    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(3);
+    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(2);
     expect((screen.getByLabelText("Starts") as HTMLInputElement).value).toBe(
-      `${selectedDate}T09:00`,
+      `${selectedDate}T09:15`,
     );
     expect((screen.getByLabelText("Ends") as HTMLInputElement).value).toBe(
-      `${selectedDate}T12:00`,
+      `${selectedDate}T09:45`,
     );
     fireEvent.change(screen.getByLabelText("Ends"), {
-      target: { value: `${selectedDate}T13:00` },
+      target: { value: `${selectedDate}T10:00` },
     });
-    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(4);
+    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(3);
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Selected range" },
     });
@@ -317,8 +317,8 @@ describe("SkyCalendarWorkspace", () => {
     expect(createEvent).toHaveBeenCalledWith(
       calendar.id,
       expect.objectContaining({
-        start: `${selectedDate}T09:00:00.000Z`,
-        end: `${selectedDate}T13:00:00.000Z`,
+        start: `${selectedDate}T09:15:00.000Z`,
+        end: `${selectedDate}T10:00:00.000Z`,
         allDay: false,
       }),
     );

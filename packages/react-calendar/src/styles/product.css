@@ -300,20 +300,26 @@
   margin-left: 0.2rem;
 }
 .skycal__hour {
-  min-height: 3.5rem;
-  padding: 0.3rem 0.45rem;
+  min-height: 1.5rem;
+  padding: 0.15rem 0.45rem;
   border-right: 1px solid var(--skycal-border);
-  border-bottom: 1px solid var(--skycal-border);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--skycal-border) 45%, transparent);
   color: var(--skycal-muted);
   font-size: 0.8125rem;
   text-align: right;
 }
 .skycal__slot {
   position: relative;
-  min-height: 3.5rem;
-  padding: 0.2rem;
+  min-height: 1.5rem;
+  padding-inline: 0.2rem;
   border-right: 1px solid var(--skycal-border);
-  border-bottom: 1px solid var(--skycal-border);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--skycal-border) 45%, transparent);
+}
+.skycal__hour[data-hour-end="true"],
+.skycal__slot[data-hour-end="true"] {
+  border-bottom-color: var(--skycal-border);
 }
 .skycal__range-preview {
   position: absolute;

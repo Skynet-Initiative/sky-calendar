@@ -107,7 +107,12 @@ interface SlotHitArea {
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
-const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
+const SLOT_MINUTES = 15;
+const SLOT_MS = SLOT_MINUTES * 60_000;
+const TIME_SLOTS = Array.from(
+  { length: (24 * 60) / SLOT_MINUTES },
+  (_, index) => index * SLOT_MINUTES,
+);
 const VIEWS: readonly View[] = ["month", "week", "day", "agenda"];
 
 export function SkyCalendarWorkspace({
@@ -296,9 +301,12 @@ export function SkyCalendarWorkspace({
     const value = event.currentTarget.dataset.start;
     if (value) {
       draftOpenerRef.current = event.currentTarget;
+      const start = new Date(value);
+      const allDay = event.currentTarget.dataset.allDay === "true";
       openCreate(
-        new Date(value),
-        event.currentTarget.dataset.allDay === "true",
+        start,
+        allDay,
+        allDay ? undefined : new Date(start.getTime() + SLOT_MS),
       );
     }
   }
@@ -1067,7 +1075,7 @@ function Month({
             <button
               className="skycal__day-target"
               type="button"
-              data-start={atHour(day, 9).toISOString()}
+              data-start={atTime(day, 9 * 60).toISOString()}
               data-all-day="true"
               onClick={handlers.onSlotClick}
               aria-label={`Open ${formatDay(day, locale)} in day view`}
@@ -1104,10 +1112,10 @@ function timeRangeSelectionFromDraft(
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
     return null;
   }
-  const firstSlot = Math.floor(start / HOUR_MS) * HOUR_MS;
+  const firstSlot = Math.floor(start / SLOT_MS) * SLOT_MS;
   const lastSlot = Math.max(
     firstSlot,
-    Math.ceil(end / HOUR_MS) * HOUR_MS - HOUR_MS,
+    Math.ceil(end / SLOT_MS) * SLOT_MS - SLOT_MS,
   );
   return {
     anchor: new Date(firstSlot).toISOString(),
@@ -1258,7 +1266,7 @@ function TimeGrid({
     setSelection(completedSelection);
     handlers.onTimeRangeSelect(
       new Date(first),
-      new Date(last + HOUR_MS),
+      new Date(last + SLOT_MS),
       opener,
     );
   }
@@ -1294,12 +1302,12 @@ function TimeGrid({
             {formatWeekday(day, locale)} <strong>{day.getUTCDate()}</strong>
           </div>
         ))}
-        {HOURS.map((hour) => (
-          <TimeRow
-            hour={hour}
+        {TIME_SLOTS.map((minutes) => (
+          <TimeSlot
+            minutes={minutes}
             days={days}
             events={events}
-            key={hour}
+            key={minutes}
             handlers={handlers}
             selection={visibleSelection}
             onSlotClick={handleSlotClick}
@@ -1312,8 +1320,8 @@ function TimeGrid({
   );
 }
 
-function TimeRow({
-  hour,
+function TimeSlot({
+  minutes,
   days,
   events,
   handlers,
@@ -1322,7 +1330,7 @@ function TimeRow({
   onSlotPointerDown,
   timeZone,
 }: {
-  hour: number;
+  minutes: number;
   days: Date[];
   events: DisplayEvent[];
   handlers: TimeGridHandlers;
@@ -1331,13 +1339,25 @@ function TimeRow({
   onSlotPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   timeZone: string;
 }) {
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  const label = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  const hourEnd = minute === 60 - SLOT_MINUTES;
   return (
     <>
-      <div className="skycal__hour">{String(hour).padStart(2, "0")}:00</div>
+      <div
+        className="skycal__hour"
+        data-hour-end={hourEnd ? "true" : undefined}
+      >
+        {minute === 0 ? label : null}
+      </div>
       {days.map((day) => {
-        const start = atHour(day, hour);
+        const start = atTime(day, minutes);
         const items = events.filter((item) =>
-          sameHour(wallDateFromInstant(new Date(item.start), timeZone), start),
+          sameTimeSlot(
+            wallDateFromInstant(new Date(item.start), timeZone),
+            start,
+          ),
         );
         const selected = selection
           ? start.getTime() >=
@@ -1377,6 +1397,7 @@ function TimeRow({
             className="skycal__slot"
             key={start.toISOString()}
             data-start={start.toISOString()}
+            data-hour-end={hourEnd ? "true" : undefined}
             data-range-selected={selected ? "true" : undefined}
             onDragOver={handlers.onDragOver}
             onDrop={handlers.onDrop}
@@ -1387,7 +1408,7 @@ function TimeRow({
               data-start={start.toISOString()}
               onClick={onSlotClick}
               onPointerDown={onSlotPointerDown}
-              aria-label={`Create event at ${String(hour).padStart(2, "0")}:00`}
+              aria-label={`Create event at ${label}`}
             />
             {rangePosition ? (
               <span
@@ -1618,17 +1639,25 @@ function startOfWeek(date: Date): Date {
   result.setUTCDate(result.getUTCDate() - offset);
   return result;
 }
-function atHour(day: Date, hour: number): Date {
+function atTime(day: Date, minutes: number): Date {
   return new Date(
-    Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), hour),
+    Date.UTC(
+      day.getUTCFullYear(),
+      day.getUTCMonth(),
+      day.getUTCDate(),
+      Math.floor(minutes / 60),
+      minutes % 60,
+    ),
   );
 }
-function sameHour(a: Date, b: Date): boolean {
+function sameTimeSlot(a: Date, b: Date): boolean {
   return (
     a.getUTCFullYear() === b.getUTCFullYear() &&
     a.getUTCMonth() === b.getUTCMonth() &&
     a.getUTCDate() === b.getUTCDate() &&
-    a.getUTCHours() === b.getUTCHours()
+    a.getUTCHours() === b.getUTCHours() &&
+    Math.floor(a.getUTCMinutes() / SLOT_MINUTES) ===
+      Math.floor(b.getUTCMinutes() / SLOT_MINUTES)
   );
 }
 function eventsForDay(
