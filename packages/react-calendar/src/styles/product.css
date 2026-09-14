@@ -315,9 +315,32 @@
   border-right: 1px solid var(--skycal-border);
   border-bottom: 1px solid var(--skycal-border);
 }
-.skycal__slot[data-range-selected="true"] {
-  background: color-mix(in srgb, var(--skycal-primary) 14%, var(--skycal-card));
-  box-shadow: inset 0.1875rem 0 var(--skycal-primary);
+.skycal__range-preview {
+  position: absolute;
+  z-index: 1;
+  inset-block: 0;
+  inset-inline: 0.2rem;
+  border-inline: 1px solid
+    color-mix(in srgb, var(--skycal-primary) 22%, transparent);
+  background: color-mix(in srgb, var(--skycal-primary) 14%, var(--skycal-bg));
+  pointer-events: none;
+}
+.skycal__range-preview[data-position="start"],
+.skycal__range-preview[data-position="single"] {
+  top: 0.2rem;
+  border-top: 1px solid
+    color-mix(in srgb, var(--skycal-primary) 22%, transparent);
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+.skycal__range-preview[data-position="end"],
+.skycal__range-preview[data-position="single"] {
+  bottom: 0.2rem;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--skycal-primary) 22%, transparent);
+  border-radius: 0 0 0.5rem 0.5rem;
+}
+.skycal__range-preview[data-position="single"] {
+  border-radius: 0.5rem;
 }
 .skycal__slot .skycal__event {
   width: 100%;

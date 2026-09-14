@@ -108,12 +108,10 @@ describe("SkyCalendarWorkspace", () => {
         calendarComposer={TestCalendarComposer}
       />,
     );
-    const [day] = await screen.findAllByRole("button", {
-      name: /create event on/i,
+    await screen.findAllByRole("button", {
+      name: /open .* in day view/i,
     });
-    if (!day) throw new Error("month view did not expose a day target");
-
-    fireEvent.click(day);
+    fireEvent.click(screen.getByRole("button", { name: "New event" }));
     expect(
       screen.getByRole("region", { name: "Host event panel" }),
     ).toBeTruthy();
@@ -159,34 +157,17 @@ describe("SkyCalendarWorkspace", () => {
     await waitFor(() => expect(listCalendars).toHaveBeenCalledTimes(2));
     expect(listEvents).toHaveBeenCalledTimes(2);
     expect(
-      await screen.findAllByRole("button", { name: /create event on/i }),
+      await screen.findAllByRole("button", { name: /open .* in day view/i }),
     ).not.toHaveLength(0);
   });
 
-  it("creates an event from a single calendar-cell click", async () => {
-    const created: ProductEvent = {
-      id: "event-1",
-      calendarId: calendar.id,
-      title: "Planning",
-      description: null,
-      location: null,
-      start: "2026-09-14T09:00:00.000Z",
-      end: "2026-09-14T10:00:00.000Z",
-      allDay: true,
-      timeZone: "UTC",
-      recurrenceRule: null,
-      recurrenceExceptions: [],
-      status: "confirmed",
-      visibility: "default",
-      attendees: [],
-    };
-    const createEvent = vi.fn().mockResolvedValue(created);
+  it("opens a selected month date in the day view", async () => {
     const transport: SkyCalendarTransport = {
       listCalendars: vi.fn().mockResolvedValue([calendar]),
       createCalendar: vi.fn().mockResolvedValue(calendar),
       listEvents: vi.fn().mockResolvedValue([]),
       exportEvents: vi.fn().mockResolvedValue([]),
-      createEvent,
+      createEvent: vi.fn(),
       replaceEvent: vi.fn(),
       deleteEvent: vi.fn(),
     };
@@ -195,30 +176,24 @@ describe("SkyCalendarWorkspace", () => {
       <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
     );
     const [day] = await screen.findAllByRole("button", {
-      name: /create event on/i,
+      name: /open .* in day view/i,
     });
     expect(day).toBeDefined();
     if (!day) throw new Error("month view did not expose a day target");
     const selectedDate = day.dataset.start?.slice(0, 10);
     if (!selectedDate) throw new Error("day target did not expose its date");
     fireEvent.click(day);
-    const composer = screen.getByRole("dialog", { name: "New event" });
-    expect(composer.getAttribute("aria-modal")).toBe("false");
-    expect(document.querySelector("dialog")).toBeNull();
-    expect(screen.getAllByText(/All day/u)).not.toHaveLength(0);
-    expect((screen.getByLabelText("Starts") as HTMLInputElement).value).toBe(
-      `${selectedDate}T00:00`,
-    );
-    fireEvent.change(screen.getByLabelText("Title"), {
-      target: { value: "Planning" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(createEvent).toHaveBeenCalledOnce());
-    expect(createEvent).toHaveBeenCalledWith(
-      calendar.id,
-      expect.objectContaining({ title: "Planning", allDay: true }),
-    );
+    expect(
+      screen
+        .getByRole("group", { name: "Time grid" })
+        .getAttribute("data-days"),
+    ).toBe("1");
+    const [selectedSlot] = screen.getAllByRole("button", {
+      name: "Create event at 09:00",
+    });
+    expect(selectedSlot?.dataset.start?.slice(0, 10)).toBe(selectedDate);
+    expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
   });
 
   it("creates a timed draft from a dragged range in the week grid", async () => {
@@ -235,7 +210,7 @@ describe("SkyCalendarWorkspace", () => {
     render(
       <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
     );
-    await screen.findAllByRole("button", { name: /create event on/i });
+    await screen.findAllByRole("button", { name: /open .* in day view/i });
     fireEvent.click(screen.getByRole("button", { name: "Week" }));
 
     const start = screen.getAllByRole("button", {
@@ -258,6 +233,7 @@ describe("SkyCalendarWorkspace", () => {
       pointerId: 1,
       pointerType: "mouse",
     });
+    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(1);
     firePointerEvent(grid, "pointermove", {
       clientX: 10,
       clientY: 10,
@@ -276,12 +252,15 @@ describe("SkyCalendarWorkspace", () => {
     Reflect.deleteProperty(document, "elementFromPoint");
 
     expect(screen.getByRole("dialog", { name: "New event" })).toBeTruthy();
+    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(3);
     expect((screen.getByLabelText("Starts") as HTMLInputElement).value).toBe(
       `${selectedDate}T09:00`,
     );
     expect((screen.getByLabelText("Ends") as HTMLInputElement).value).toBe(
       `${selectedDate}T12:00`,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(0);
   });
 
   it("closes the date composer with Escape and restores focus", async () => {
@@ -298,17 +277,17 @@ describe("SkyCalendarWorkspace", () => {
     render(
       <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
     );
-    const [day] = await screen.findAllByRole("button", {
-      name: /create event on/i,
+    await screen.findAllByRole("button", {
+      name: /open .* in day view/i,
     });
-    if (!day) throw new Error("month view did not expose a day target");
-    fireEvent.click(day);
+    const opener = screen.getByRole("button", { name: "New event" });
+    fireEvent.click(opener);
     fireEvent.keyDown(screen.getByRole("dialog", { name: "New event" }), {
       key: "Escape",
     });
 
     expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
-    expect(document.activeElement).toBe(day);
+    expect(document.activeElement).toBe(opener);
   });
 
   it("renders bounded recurrence instances in the visible period", async () => {

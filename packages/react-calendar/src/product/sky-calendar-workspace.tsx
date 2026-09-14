@@ -94,6 +94,7 @@ interface DisplayEvent extends ProductEvent {
 interface TimeRangeSelection {
   anchor: string;
   current: string;
+  active: boolean;
 }
 
 const DAY_MS = 86_400_000;
@@ -292,6 +293,15 @@ export function SkyCalendarWorkspace({
         event.currentTarget.dataset.allDay === "true",
       );
     }
+  }
+
+  function handleMonthDayClick(event: MouseEvent<HTMLButtonElement>) {
+    const value = event.currentTarget.dataset.start;
+    if (!value) return;
+    setDraft(null);
+    setCalendarComposerOpen(false);
+    setCursor(startOfDay(new Date(value)));
+    setView("day");
   }
 
   function handleTimeRangeSelect(
@@ -709,7 +719,7 @@ export function SkyCalendarWorkspace({
           events={displayEvents}
           locale={locale}
           timeZone={timeZone}
-          onSlotClick={handleSlotClick}
+          onSlotClick={handleMonthDayClick}
           onEventClick={handleEventClick}
           onDragStart={handleDragStart}
           onDragOver={allowDrop}
@@ -722,6 +732,7 @@ export function SkyCalendarWorkspace({
           events={displayEvents}
           locale={locale}
           timeZone={timeZone}
+          draftOpen={draftOpen}
           onSlotClick={handleSlotClick}
           onEventClick={handleEventClick}
           onDragStart={handleDragStart}
@@ -1051,7 +1062,7 @@ function Month({
               data-start={atHour(day, 9).toISOString()}
               data-all-day="true"
               onClick={handlers.onSlotClick}
-              aria-label={`Create event on ${formatDay(day, locale)}`}
+              aria-label={`Open ${formatDay(day, locale)} in day view`}
             >
               <time dateTime={dateKey(day)}>{day.getUTCDate()}</time>
             </button>
@@ -1081,12 +1092,14 @@ function TimeGrid({
   events,
   locale,
   timeZone,
+  draftOpen,
   ...handlers
 }: {
   days: Date[];
   events: DisplayEvent[];
   locale?: string;
   timeZone: string;
+  draftOpen: boolean;
 } & TimeGridHandlers) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -1094,6 +1107,7 @@ function TimeGrid({
   const selectionRef = useRef<TimeRangeSelection | null>(null);
   const suppressNextClickRef = useRef(false);
   const [selection, setSelection] = useState<TimeRangeSelection | null>(null);
+  const visibleSelection = selection?.active || draftOpen ? selection : null;
 
   function slotAtPoint(
     clientX: number,
@@ -1113,7 +1127,7 @@ function TimeGrid({
     event.preventDefault();
     pointerIdRef.current = event.pointerId;
     openerRef.current = event.currentTarget;
-    const nextSelection = { anchor: start, current: start };
+    const nextSelection = { anchor: start, current: start, active: true };
     selectionRef.current = nextSelection;
     setSelection(nextSelection);
     grid.setPointerCapture?.(event.pointerId);
@@ -1155,12 +1169,16 @@ function TimeGrid({
     const pointedStart = slotAtPoint(event.clientX, event.clientY)?.dataset
       .start;
     const current = pointedStart ?? active.current;
+    const completedSelection = { ...active, current, active: false };
     const first = Math.min(Date.parse(active.anchor), Date.parse(current));
     const last = Math.max(Date.parse(active.anchor), Date.parse(current));
     const opener = openerRef.current;
     suppressNextClickRef.current = true;
     queueMicrotask(clearClickSuppression);
-    clearSelection();
+    pointerIdRef.current = null;
+    openerRef.current = null;
+    selectionRef.current = completedSelection;
+    setSelection(completedSelection);
     handlers.onTimeRangeSelect(
       new Date(first),
       new Date(last + HOUR_MS),
@@ -1188,7 +1206,7 @@ function TimeGrid({
         role="group"
         aria-label="Time grid"
         data-days={days.length}
-        data-range-active={selection ? "true" : undefined}
+        data-range-active={selection?.active ? "true" : undefined}
         onPointerMove={handleGridPointerMove}
         onPointerUp={handleGridPointerUp}
         onPointerCancel={handleGridPointerCancel}
@@ -1206,7 +1224,7 @@ function TimeGrid({
             events={events}
             key={hour}
             handlers={handlers}
-            selection={selection}
+            selection={visibleSelection}
             onSlotClick={handleSlotClick}
             onSlotPointerDown={handleSlotPointerDown}
             timeZone={timeZone}
@@ -1256,6 +1274,27 @@ function TimeRow({
                 Date.parse(selection.current),
               )
           : false;
+        const selectedStart = selection
+          ? Math.min(
+              Date.parse(selection.anchor),
+              Date.parse(selection.current),
+            )
+          : 0;
+        const selectedEnd = selection
+          ? Math.max(
+              Date.parse(selection.anchor),
+              Date.parse(selection.current),
+            )
+          : 0;
+        const rangePosition = selected
+          ? selectedStart === selectedEnd
+            ? "single"
+            : start.getTime() === selectedStart
+              ? "start"
+              : start.getTime() === selectedEnd
+                ? "end"
+                : "middle"
+          : null;
         return (
           <div
             className="skycal__slot"
@@ -1273,6 +1312,13 @@ function TimeRow({
               onPointerDown={onSlotPointerDown}
               aria-label={`Create event at ${String(hour).padStart(2, "0")}:00`}
             />
+            {rangePosition ? (
+              <span
+                className="skycal__range-preview"
+                data-position={rangePosition}
+                aria-hidden="true"
+              />
+            ) : null}
             {items.map((item) => (
               <EventButton
                 item={item}
