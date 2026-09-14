@@ -5,6 +5,8 @@
   --skycal-text: var(--foreground, #16181d);
   --skycal-muted: var(--muted-foreground, #667085);
   --skycal-primary: var(--primary, #2563eb);
+  --skycal-primary-ink: var(--primary-foreground, #fff);
+  --skycal-danger: var(--destructive-foreground, #b42318);
   min-width: 0;
   color: var(--skycal-text);
 }
@@ -94,14 +96,14 @@
 }
 .skycal__button--primary {
   background: var(--skycal-primary);
-  color: #fff;
+  color: var(--skycal-primary-ink);
 }
 .skycal__button--primary:hover {
   filter: brightness(0.92);
 }
 .skycal__button--danger {
   margin-right: auto;
-  color: #b42318;
+  color: var(--skycal-danger);
 }
 .skycal__button:disabled {
   cursor: not-allowed;
@@ -362,7 +364,7 @@
 }
 .skycal__form-error {
   margin: 0;
-  color: #b42318;
+  color: var(--skycal-danger);
   font-size: 0.85rem;
 }
 .skycal__field textarea {

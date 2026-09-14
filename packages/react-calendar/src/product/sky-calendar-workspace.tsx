@@ -10,7 +10,8 @@ import {
   type MouseEvent,
 } from "react";
 import { rrulestr } from "rrule";
-import { eventsToCsv, eventsToIcs } from "../export";
+import { eventsToCsv } from "../export/csv-export";
+import { eventsToIcs } from "../export/ics-export";
 import type {
   ProductCalendar,
   ProductEvent,
