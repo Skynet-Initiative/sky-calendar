@@ -55,6 +55,10 @@ bun run dev
 
 Frontend : `http://localhost:3010`. API : `http://localhost:4010/api/v1`.
 
+Les migrations SQL sont immuables, nommées `YYYYMMDDHHMMSS_description.sql` et
+appliquées dans l'ordre lexical. Le runner vérifie leur somme de contrôle et
+sérialise les démarrages concurrents avant d'exécuter les migrations restantes.
+
 ## Qualité
 
 ```sh
