@@ -20,4 +20,21 @@ describe("environment", () => {
       validateEnv({ ...valid, PLATFORM_MINTER_PUBLIC_KEYS: "" }),
     ).toThrow();
   });
+
+  it("rejects production without a control-plane token", () => {
+    expect(() => validateEnv({ ...valid, NODE_ENV: "production" })).toThrow(
+      "CONTROL_PLANE_TOKEN is required in production",
+    );
+  });
+
+  it("accepts and trims a production control-plane token", () => {
+    expect(
+      validateEnv({
+        ...valid,
+        NODE_ENV: "production",
+        CONTROL_PLANE_TOKEN:
+          "  calendar-control-token-at-least-32-characters  ",
+      }).CONTROL_PLANE_TOKEN,
+    ).toBe("calendar-control-token-at-least-32-characters");
+  });
 });

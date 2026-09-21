@@ -41,7 +41,8 @@ tokens CSS de l'hôte avec des valeurs de repli.
 Ecosystem conserve uniquement son adaptateur BFF. Skynet v2 vérifie le projet et les droits,
 dérive un workspace opaque, puis émet un jeton court limité à `read` ou `manage`. Lors de la
 purge d'un projet, son plan de contrôle appelle `DELETE /api/v1/control/workspaces/:workspaceId`;
-ce point d'entrée idempotent exige `CONTROL_PLANE_TOKEN`.
+ce point d'entrée idempotent exige `CONTROL_PLANE_TOKEN`. En production, le backend refuse de
+démarrer si ce secret manque ou ne respecte pas la longueur minimale.
 
 ## Développement
 
