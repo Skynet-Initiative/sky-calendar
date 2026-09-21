@@ -19,7 +19,8 @@ const BUDGETS = [
   { file: "date-fns.js", kb: 6 },
   { file: "recurrence.js", kb: 6 },
   { file: "export.js", kb: 8 },
-  { file: "product.js", kb: 13 },
+  // Read-only product controls add 12 B gzip over the 13,303 B baseline.
+  { file: "product.js", kb: 13.125 },
 ];
 
 let failed = false;

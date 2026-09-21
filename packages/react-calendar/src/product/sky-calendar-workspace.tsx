@@ -38,6 +38,8 @@ export interface SkyCalendarWorkspaceProps {
   timeZone?: string;
   locale?: string;
   onError?: (error: unknown) => void;
+  /** Keep calendar data readable while removing every mutation affordance. */
+  editable?: boolean;
   showSecondaryActions?: boolean;
   eventComposer?: ComponentType<SkyCalendarEventComposerRenderProps>;
   calendarComposer?: ComponentType<SkyCalendarCalendarComposerRenderProps>;
@@ -120,6 +122,7 @@ export function SkyCalendarWorkspace({
   timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
   locale,
   onError,
+  editable = true,
   showSecondaryActions = true,
   eventComposer: EventComposer,
   calendarComposer: CalendarComposer,
@@ -302,12 +305,7 @@ export function SkyCalendarWorkspace({
     if (value) {
       draftOpenerRef.current = event.currentTarget;
       const start = new Date(value);
-      const allDay = event.currentTarget.dataset.allDay === "true";
-      openCreate(
-        start,
-        allDay,
-        allDay ? undefined : new Date(start.getTime() + SLOT_MS),
-      );
+      openCreate(start, false, new Date(start.getTime() + SLOT_MS));
     }
   }
 
@@ -629,12 +627,16 @@ export function SkyCalendarWorkspace({
   return (
     <section className="skycal" aria-labelledby="skycal-title">
       <header className="skycal__header">
-        <h1 id="skycal-title">{title}</h1>
+        <h1 id="skycal-title">
+          {title}
+          {editable ? null : " (read-only)"}
+        </h1>
         <div className="skycal__primary-actions">
           <button
             className="skycal__button skycal__button--primary"
             type="button"
             onClick={handleCreateNow}
+            hidden={!editable}
           >
             New event
           </button>
@@ -644,6 +646,7 @@ export function SkyCalendarWorkspace({
                 className="skycal__button"
                 type="button"
                 onClick={openCalendarComposer}
+                hidden={!editable}
               >
                 New calendar
               </button>
@@ -744,6 +747,7 @@ export function SkyCalendarWorkspace({
         <Month
           days={days}
           events={displayEvents}
+          editable={editable}
           locale={locale}
           timeZone={timeZone}
           onSlotClick={handleMonthDayClick}
@@ -757,6 +761,7 @@ export function SkyCalendarWorkspace({
         <TimeGrid
           days={days}
           events={displayEvents}
+          editable={editable}
           locale={locale}
           timeZone={timeZone}
           draft={draft}
@@ -771,12 +776,13 @@ export function SkyCalendarWorkspace({
       {!loading && !loadFailed && view === "agenda" ? (
         <Agenda
           events={displayEvents}
+          editable={editable}
           locale={locale}
           timeZone={timeZone}
           onEventClick={handleEventClick}
         />
       ) : null}
-      {draft && EventComposer ? (
+      {editable && draft && EventComposer ? (
         <EventComposer
           calendars={calendars}
           draft={draft}
@@ -789,7 +795,7 @@ export function SkyCalendarWorkspace({
           onSubmit={saveDraft}
         />
       ) : null}
-      {draft && !EventComposer ? (
+      {editable && draft && !EventComposer ? (
         <aside
           className="skycal__composer"
           ref={draftComposerRef}
@@ -974,7 +980,7 @@ export function SkyCalendarWorkspace({
           </form>
         </aside>
       ) : null}
-      {calendarComposerOpen && CalendarComposer ? (
+      {editable && calendarComposerOpen && CalendarComposer ? (
         <CalendarComposer
           name={calendarDraft}
           saving={saving}
@@ -983,7 +989,7 @@ export function SkyCalendarWorkspace({
           onSubmit={saveCalendar}
         />
       ) : null}
-      {calendarComposerOpen && !CalendarComposer ? (
+      {editable && calendarComposerOpen && !CalendarComposer ? (
         <aside
           className="skycal__composer skycal__composer--calendar"
           ref={calendarComposerRef}
@@ -1038,6 +1044,7 @@ export function SkyCalendarWorkspace({
 }
 
 interface CalendarHandlers {
+  editable: boolean;
   onSlotClick: (event: MouseEvent<HTMLButtonElement>) => void;
   onEventClick: (event: MouseEvent<HTMLButtonElement>) => void;
   onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
@@ -1087,7 +1094,6 @@ function Month({
               className="skycal__day-target"
               type="button"
               data-start={atTime(day, 9 * 60).toISOString()}
-              data-all-day="true"
               onClick={handlers.onSlotClick}
               aria-label={`Open ${formatDay(day, locale)} in day view`}
             >
@@ -1096,6 +1102,7 @@ function Month({
             <div className="skycal__day-events">
               {items.slice(0, 4).map((item) => (
                 <EventButton
+                  editable={handlers.editable}
                   item={item}
                   key={item.instanceKey}
                   onClick={handlers.onEventClick}
@@ -1321,7 +1328,6 @@ function TimeGrid({
         role="group"
         aria-label="Time grid"
         data-days={days.length}
-        data-range-active={selection?.active ? "true" : undefined}
         onPointerMove={handleGridPointerMove}
         onPointerUp={handleGridPointerUp}
         onPointerCancel={handleGridPointerCancel}
@@ -1435,7 +1441,6 @@ function TimeSlot({
             key={start.toISOString()}
             data-start={start.toISOString()}
             data-hour-end={hourEnd ? "true" : undefined}
-            data-range-selected={selected ? "true" : undefined}
             onDragOver={handlers.onDragOver}
             onDrop={handlers.onDrop}
           >
@@ -1447,6 +1452,7 @@ function TimeSlot({
               onKeyDown={onSlotKeyDown}
               onPointerDown={onSlotPointerDown}
               aria-label={`New event, ${formatDay(day, locale)}, ${label}`}
+              hidden={!handlers.editable}
             />
             {rangePosition ? (
               <span
@@ -1457,6 +1463,7 @@ function TimeSlot({
             ) : null}
             {items.map((item) => (
               <EventButton
+                editable={handlers.editable}
                 item={item}
                 key={item.instanceKey}
                 onClick={handlers.onEventClick}
@@ -1473,11 +1480,13 @@ function TimeSlot({
 
 function EventButton({
   item,
+  editable,
   onClick,
   onDragStart,
   timeZone,
 }: {
   item: DisplayEvent;
+  editable: boolean;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
   timeZone: string;
@@ -1486,8 +1495,8 @@ function EventButton({
     <button
       className="skycal__event"
       type="button"
-      draggable={!item.recurrenceRule}
-      data-event-id={item.id}
+      draggable={editable && !item.recurrenceRule}
+      disabled={!editable}
       data-instance-key={item.instanceKey}
       data-status={item.status}
       onClick={onClick}
@@ -1503,11 +1512,13 @@ function EventButton({
 
 function Agenda({
   events,
+  editable,
   locale,
   timeZone,
   onEventClick,
 }: {
   events: DisplayEvent[];
+  editable: boolean;
   locale?: string;
   timeZone: string;
   onEventClick: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -1531,9 +1542,9 @@ function Agenda({
           </time>
           <button
             type="button"
-            data-event-id={item.id}
             data-instance-key={item.instanceKey}
             onClick={onEventClick}
+            disabled={!editable}
           >
             <strong>{item.title}</strong>
             {item.location ? <span>{item.location}</span> : null}

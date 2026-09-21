@@ -34,6 +34,27 @@ function createProductEvent(
   });
 }
 
+function currentEvent(): ProductEvent {
+  const start = new Date();
+  start.setSeconds(0, 0);
+  return {
+    id: "event-read-only",
+    calendarId: calendar.id,
+    title: "Read-only event",
+    description: null,
+    location: null,
+    start: start.toISOString(),
+    end: new Date(start.getTime() + 60 * 60_000).toISOString(),
+    allDay: false,
+    timeZone: "UTC",
+    recurrenceRule: null,
+    recurrenceExceptions: [],
+    status: "confirmed",
+    visibility: "default",
+    attendees: [],
+  };
+}
+
 function firePointerEvent(
   target: Element,
   type: string,
@@ -102,6 +123,49 @@ describe("SkyCalendarWorkspace", () => {
     expect(screen.queryByRole("button", { name: "New calendar" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Export ICS" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
+  });
+
+  it("keeps reads available without exposing mutations in read-only mode", async () => {
+    const createCalendar = vi.fn();
+    const createEvent = vi.fn();
+    const replaceEvent = vi.fn();
+    const deleteEvent = vi.fn();
+    const transport: SkyCalendarTransport = {
+      listCalendars: vi.fn().mockResolvedValue([calendar]),
+      createCalendar,
+      listEvents: vi.fn().mockResolvedValue([currentEvent()]),
+      exportEvents: vi.fn().mockResolvedValue([]),
+      createEvent,
+      replaceEvent,
+      deleteEvent,
+    };
+
+    render(
+      <SkyCalendarWorkspace
+        transport={transport}
+        timeZone="UTC"
+        locale="en"
+        editable={false}
+      />,
+    );
+
+    expect(await screen.findByText("Read-only event")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /read.?only/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "New event" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "New calendar" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Export ICS" })).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: /Read-only event/i })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+    expect(screen.queryByRole("button", { name: /New event,/i })).toBeNull();
+    expect(createCalendar).not.toHaveBeenCalled();
+    expect(createEvent).not.toHaveBeenCalled();
+    expect(replaceEvent).not.toHaveBeenCalled();
+    expect(deleteEvent).not.toHaveBeenCalled();
   });
 
   it("delegates composer presentation to the host application", async () => {
@@ -316,9 +380,7 @@ describe("SkyCalendarWorkspace", () => {
       pointerId: 1,
       pointerType: "mouse",
     });
-    expect(
-      document.querySelectorAll('[data-range-selected="true"]'),
-    ).toHaveLength(2);
+    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(2);
     firePointerEvent(grid, "pointerup", {
       clientX: 10,
       clientY: 130,

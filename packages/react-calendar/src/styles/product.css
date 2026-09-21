@@ -276,13 +276,11 @@
   display: grid;
   min-width: 42rem;
   grid-template-columns: 4rem repeat(var(--skycal-days, 7), minmax(6rem, 1fr));
+  user-select: none;
 }
 .skycal__time-grid[data-days="1"] {
   min-width: 22rem;
   grid-template-columns: 4rem minmax(16rem, 1fr);
-}
-.skycal__time-grid[data-range-active="true"] {
-  user-select: none;
 }
 .skycal__time-corner,
 .skycal__time-day {
