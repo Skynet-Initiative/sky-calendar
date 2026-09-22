@@ -178,10 +178,11 @@ describe("SkyCalendarWorkspace", () => {
   });
 
   it("opens a selected month date in the day view", async () => {
+    const listEvents = vi.fn().mockResolvedValue([]);
     const transport: SkyCalendarTransport = {
       listCalendars: vi.fn().mockResolvedValue([calendar]),
       createCalendar: vi.fn().mockResolvedValue(calendar),
-      listEvents: vi.fn().mockResolvedValue([]),
+      listEvents,
       exportEvents: vi.fn().mockResolvedValue([]),
       createEvent: vi.fn(),
       replaceEvent: vi.fn(),
@@ -203,6 +204,7 @@ describe("SkyCalendarWorkspace", () => {
       ?.replace(/^Open | in day view$/g, "");
     if (!selectedLabel) throw new Error("day target did not expose its label");
     fireEvent.click(day);
+    await waitFor(() => expect(listEvents).toHaveBeenCalledTimes(2));
 
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
       selectedLabel,
@@ -221,10 +223,11 @@ describe("SkyCalendarWorkspace", () => {
   });
 
   it("does not offer a redundant Today action for the current period", async () => {
+    const listEvents = vi.fn().mockResolvedValue([]);
     const transport: SkyCalendarTransport = {
       listCalendars: vi.fn().mockResolvedValue([calendar]),
       createCalendar: vi.fn(),
-      listEvents: vi.fn().mockResolvedValue([]),
+      listEvents,
       exportEvents: vi.fn(),
       createEvent: vi.fn(),
       replaceEvent: vi.fn(),
@@ -238,8 +241,10 @@ describe("SkyCalendarWorkspace", () => {
     await screen.findAllByRole("button", { name: /open .* in day view/i });
     expect(screen.queryByRole("button", { name: "Today" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Next period" }));
+    await waitFor(() => expect(listEvents).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("button", { name: "Today" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    await waitFor(() => expect(listEvents).toHaveBeenCalledTimes(3));
     expect(screen.queryByRole("button", { name: "Today" })).toBeNull();
   });
 
