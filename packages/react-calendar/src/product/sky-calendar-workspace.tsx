@@ -227,6 +227,7 @@ export function SkyCalendarWorkspace({
   }
 
   function openCreate(start: Date, allDay = false, selectedEnd?: Date) {
+    if (!editable) return;
     setCalendarComposerOpen(false);
     setDraftError("");
     const normalizedStart = allDay ? startOfDay(start) : start;
@@ -259,6 +260,7 @@ export function SkyCalendarWorkspace({
   }
 
   function openCalendarComposer(event: MouseEvent<HTMLButtonElement>) {
+    if (!editable) return;
     calendarOpenerRef.current = event.currentTarget;
     setDraft(null);
     setCalendarDraft("");
@@ -278,6 +280,7 @@ export function SkyCalendarWorkspace({
 
   async function saveCalendar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!editable) return;
     if (!calendarDraft.trim() || saving) return;
     setSaving(true);
     try {
@@ -301,11 +304,17 @@ export function SkyCalendarWorkspace({
   }
 
   function handleSlotClick(event: MouseEvent<HTMLButtonElement>) {
+    if (!editable) return;
     const value = event.currentTarget.dataset.start;
     if (value) {
       draftOpenerRef.current = event.currentTarget;
       const start = new Date(value);
-      openCreate(start, false, new Date(start.getTime() + SLOT_MS));
+      const allDay = event.currentTarget.dataset.allDay === "true";
+      openCreate(
+        start,
+        allDay,
+        allDay ? undefined : new Date(start.getTime() + SLOT_MS),
+      );
     }
   }
 
@@ -323,11 +332,13 @@ export function SkyCalendarWorkspace({
     end: Date,
     opener: HTMLButtonElement,
   ) {
+    if (!editable) return;
     draftOpenerRef.current = opener;
     openCreate(start, false, end);
   }
 
   function handleEventClick(event: MouseEvent<HTMLButtonElement>) {
+    if (!editable) return;
     const instanceKey = event.currentTarget.dataset.instanceKey;
     const item = displayEvents.find(
       (candidate) => candidate.instanceKey === instanceKey,
@@ -413,7 +424,7 @@ export function SkyCalendarWorkspace({
 
   async function saveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!draft || !draft.title.trim() || saving) return;
+    if (!editable || !draft || !draft.title.trim() || saving) return;
     let input: ProductEventInput;
     try {
       input = draftInput(draft);
@@ -493,7 +504,7 @@ export function SkyCalendarWorkspace({
   }
 
   async function deleteDraft() {
-    if (!draft?.id || saving) return;
+    if (!editable || !draft?.id || saving) return;
     setSaving(true);
     try {
       if (draft.occurrenceStart && draft.scope === "occurrence") {
@@ -523,17 +534,20 @@ export function SkyCalendarWorkspace({
   }
 
   function handleDragStart(event: DragEvent<HTMLButtonElement>) {
+    if (!editable) return;
     draggedKey.current = event.currentTarget.dataset.instanceKey ?? null;
     if (draggedKey.current)
       event.dataTransfer.setData("text/plain", draggedKey.current);
   }
 
   function allowDrop(event: DragEvent<HTMLElement>) {
+    if (!editable) return;
     event.preventDefault();
   }
 
   async function handleDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault();
+    if (!editable) return;
     const instanceKey =
       draggedKey.current ?? event.dataTransfer.getData("text/plain");
     const startValue = event.currentTarget.dataset.start;
@@ -1094,6 +1108,7 @@ function Month({
               className="skycal__day-target"
               type="button"
               data-start={atTime(day, 9 * 60).toISOString()}
+              data-all-day="true"
               onClick={handlers.onSlotClick}
               aria-label={`Open ${formatDay(day, locale)} in day view`}
             >
@@ -1328,6 +1343,7 @@ function TimeGrid({
         role="group"
         aria-label="Time grid"
         data-days={days.length}
+        data-range-active={selection?.active ? "true" : undefined}
         onPointerMove={handleGridPointerMove}
         onPointerUp={handleGridPointerUp}
         onPointerCancel={handleGridPointerCancel}
@@ -1441,6 +1457,7 @@ function TimeSlot({
             key={start.toISOString()}
             data-start={start.toISOString()}
             data-hour-end={hourEnd ? "true" : undefined}
+            data-range-selected={selected ? "true" : undefined}
             onDragOver={handlers.onDragOver}
             onDrop={handlers.onDrop}
           >
@@ -1497,6 +1514,7 @@ function EventButton({
       type="button"
       draggable={editable && !item.recurrenceRule}
       disabled={!editable}
+      data-event-id={item.id}
       data-instance-key={item.instanceKey}
       data-status={item.status}
       onClick={onClick}
@@ -1542,6 +1560,7 @@ function Agenda({
           </time>
           <button
             type="button"
+            data-event-id={item.id}
             data-instance-key={item.instanceKey}
             onClick={onEventClick}
             disabled={!editable}
