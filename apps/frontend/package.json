@@ -13,13 +13,13 @@
   "dependencies": {
     "@skynet-initiative/sky-calendar": "workspace:*",
     "next": "16.3.5",
-    "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@types/node": "25.9.1",
-    "@types/react": "19.2.16",
-    "@types/react-dom": "19.2.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
   }
