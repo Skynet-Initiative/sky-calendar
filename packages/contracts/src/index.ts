@@ -19,6 +19,16 @@ export const attendeeSchema = z.object({
   response: z.enum(["needs-action", "accepted", "declined", "tentative"]),
 });
 
+/**
+ * A video conference attached to an event. The calendar keeps the provider,
+ * its stable identifier and the join link; admission stays with the provider.
+ */
+export const conferenceSchema = z.object({
+  provider: z.literal("skydirect"),
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+  joinUrl: z.url({ protocol: /^https$/ }).max(2_048),
+});
+
 export const eventSchema = z.object({
   id: identifier,
   calendarId: identifier,
@@ -34,6 +44,7 @@ export const eventSchema = z.object({
   status: z.enum(["confirmed", "tentative", "cancelled"]),
   visibility: z.enum(["default", "public", "private"]),
   attendees: z.array(attendeeSchema).max(200),
+  conference: conferenceSchema.nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -53,6 +64,8 @@ export const createCalendarSchema = calendarSchema.pick({
   timeZone: true,
 });
 
+export const updateCalendarSchema = createCalendarSchema.partial();
+
 export const createEventSchema = eventSchema
   .omit({
     id: true,
@@ -65,13 +78,22 @@ export const createEventSchema = eventSchema
     location: z.string().max(500).optional(),
     recurrenceRule: z.string().max(2_000).optional(),
     recurrenceExceptions: z.array(z.iso.datetime()).max(1_000).optional(),
+    conference: conferenceSchema.nullable().optional(),
   });
+
+/** A replacement may move the event to another calendar of the workspace. */
+export const replaceEventSchema = createEventSchema.extend({
+  calendarId: identifier.optional(),
+});
 
 export type Calendar = z.infer<typeof calendarSchema>;
 export type CalendarEvent = z.infer<typeof eventSchema>;
 export type EventAttendee = z.infer<typeof attendeeSchema>;
 export type CreateCalendar = z.infer<typeof createCalendarSchema>;
 export type CreateCalendarEvent = z.infer<typeof createEventSchema>;
+export type ReplaceCalendarEvent = z.infer<typeof replaceEventSchema>;
+export type UpdateCalendar = z.infer<typeof updateCalendarSchema>;
+export type EventConference = z.infer<typeof conferenceSchema>;
 
 export interface SkyCalendarClientOptions {
   baseUrl: string;
@@ -164,15 +186,37 @@ export function createClient(options: SkyCalendarClientOptions) {
     replaceEvent: (
       workspaceId: string,
       eventId: string,
-      event: CreateCalendarEvent,
+      event: ReplaceCalendarEvent,
     ) =>
       request(
         `${workspacePath(workspaceId)}/events/${encodeURIComponent(eventId)}`,
         eventSchema,
         {
           method: "PUT",
-          body: JSON.stringify(createEventSchema.parse(event)),
+          body: JSON.stringify(replaceEventSchema.parse(event)),
         },
+      ),
+    updateCalendar: (
+      workspaceId: string,
+      calendarId: string,
+      calendar: UpdateCalendar,
+    ) =>
+      request(
+        `${workspacePath(workspaceId)}/calendars/${encodeURIComponent(calendarId)}`,
+        calendarSchema,
+        {
+          method: "PATCH",
+          body: JSON.stringify(updateCalendarSchema.parse(calendar)),
+        },
+      ),
+    deleteCalendar: (
+      workspaceId: string,
+      calendarId: string,
+      signal?: AbortSignal,
+    ) =>
+      requestWithoutResponse(
+        `${workspacePath(workspaceId)}/calendars/${encodeURIComponent(calendarId)}`,
+        { method: "DELETE", signal },
       ),
     deleteEvent: (workspaceId: string, eventId: string, signal?: AbortSignal) =>
       requestWithoutResponse(

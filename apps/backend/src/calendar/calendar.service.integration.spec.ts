@@ -82,4 +82,90 @@ integration("CalendarService PostgreSQL isolation", () => {
       await service.onModuleDestroy();
     }
   });
+
+  it("keeps a conference, moves events between calendars and cascades a calendar delete", async () => {
+    const service = new CalendarService({
+      getOrThrow: () => databaseUrl,
+    } as never);
+    const workspace = `cal_${randomUUID()}`;
+    const foreign = `cal_${randomUUID()}`;
+    try {
+      const first = (await service.createCalendar(workspace, {
+        name: "Team",
+        color: "#2563eb",
+        timeZone: "Europe/Paris",
+      })) as { id: string };
+      const second = (await service.createCalendar(workspace, {
+        name: "Personal",
+        color: "#16a34a",
+        timeZone: "Europe/Paris",
+      })) as { id: string };
+      const elsewhere = (await service.createCalendar(foreign, {
+        name: "Elsewhere",
+        color: "#2563eb",
+        timeZone: "UTC",
+      })) as { id: string };
+      const conference = {
+        provider: "skydirect" as const,
+        id: "fmYTdnEKrcwM",
+        joinUrl: "https://app.example.test/direct/fmYTdnEKrcwM/",
+      };
+      const input = {
+        title: "Weekly sync",
+        start: "2026-10-26T09:00:00.000Z",
+        end: "2026-10-26T09:30:00.000Z",
+        allDay: false,
+        timeZone: "Europe/Paris",
+        status: "tentative" as const,
+        visibility: "private" as const,
+        attendees: [
+          { email: "ana@example.com", displayName: "Ana", response: "accepted" as const },
+        ],
+        conference,
+      };
+
+      const created = (await service.createEvent(workspace, first.id, input)) as {
+        id: string;
+        calendarId: string;
+        conference: unknown;
+        attendees: unknown;
+      };
+      expect(created.conference).toEqual(conference);
+      expect(created.attendees).toEqual(input.attendees);
+
+      const moved = (await service.replaceEvent(workspace, created.id, {
+        ...input,
+        calendarId: second.id,
+        conference: null,
+      })) as { calendarId: string; conference: unknown };
+      expect(moved.calendarId).toBe(second.id);
+      expect(moved.conference).toBeNull();
+
+      await expect(
+        service.replaceEvent(workspace, created.id, { ...input, calendarId: elsewhere.id }),
+      ).rejects.toMatchObject({ status: 404 });
+
+      const renamed = (await service.updateCalendar(workspace, second.id, {
+        name: "Mine",
+        color: "#dc2626",
+      })) as { name: string; color: string; timeZone: string };
+      expect(renamed).toMatchObject({ name: "Mine", color: "#dc2626", timeZone: "Europe/Paris" });
+      await expect(
+        service.updateCalendar(foreign, second.id, { name: "Stolen" }),
+      ).rejects.toMatchObject({ status: 404 });
+
+      await expect(
+        service.deleteCalendar(foreign, second.id),
+      ).rejects.toMatchObject({ status: 404 });
+      await service.deleteCalendar(workspace, second.id);
+      await expect(
+        service.listEvents(workspace, "2026-10-01T00:00:00.000Z", "2026-11-01T00:00:00.000Z"),
+      ).resolves.toEqual([]);
+      await expect(service.listCalendars(workspace)).resolves.toHaveLength(1);
+    } finally {
+      await service.deleteWorkspace(workspace);
+      await service.deleteWorkspace(foreign);
+      await service.onModuleDestroy();
+    }
+  });
 });

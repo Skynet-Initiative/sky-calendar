@@ -25,7 +25,7 @@ async function bootstrap() {
       .split(",")
       .map((value) => value.trim()),
     allowedHeaders: ["Authorization", "Content-Type", "X-Request-Id"],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: false,
   });
   app.enableVersioning({ defaultVersion: "1", type: VersioningType.URI });
