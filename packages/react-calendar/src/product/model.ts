@@ -391,6 +391,181 @@ export function roundUpToSlot(
   return instantFromWallDate(wall, timeZone);
 }
 
+// ── the calendar as it will be ──────────────────────────────────────────────
+
+/** The id of the draft's own block on the grid, while the editor is open. */
+export const DRAFT_EVENT_ID = "draft";
+const PROVISIONAL_PREFIX = "provisional-";
+let provisionalCount = 0;
+
+/** An id for an event the server has not answered for yet. */
+export function provisionalEventId(): string {
+  provisionalCount += 1;
+  return `${PROVISIONAL_PREFIX}${provisionalCount}`;
+}
+
+/** The draft block, or an event still waiting for the server: shown, never edited. */
+export function isProvisionalEvent(id: string): boolean {
+  return id === DRAFT_EVENT_ID || id.startsWith(PROVISIONAL_PREFIX);
+}
+
+function provisional(
+  id: string,
+  calendarId: string,
+  input: ProductEventInput,
+): ProductEvent {
+  return {
+    id,
+    calendarId,
+    title: input.title,
+    description: input.description ?? null,
+    location: input.location ?? null,
+    start: input.start,
+    end: input.end,
+    allDay: input.allDay,
+    timeZone: input.timeZone,
+    recurrenceRule: input.recurrenceRule ?? null,
+    recurrenceExceptions: input.recurrenceExceptions ?? [],
+    status: input.status,
+    visibility: input.visibility,
+    attendees: input.attendees,
+    conference: input.conference ?? null,
+  };
+}
+
+function withException(
+  series: ProductEvent,
+  occurrenceStart: string,
+): ProductEvent {
+  return {
+    ...series,
+    recurrenceExceptions: [
+      ...new Set([...series.recurrenceExceptions, occurrenceStart]),
+    ],
+  };
+}
+
+/**
+ * The events once the draft is saved — the same three cases the save itself
+ * goes through: a new event, a whole event (or series) replaced, or one
+ * occurrence detached from its series. A screen shows this twice: as a
+ * preview while the draft is edited, and as the result while the server has
+ * not answered yet, so nothing on the grid ever jumps back.
+ */
+export function eventsAfterSave(
+  events: readonly ProductEvent[],
+  draft: Readonly<SkyCalendarEventDraft>,
+  input: ProductEventInput,
+  calendarId: string,
+  newId: string,
+): ProductEvent[] {
+  const master = draft.id
+    ? (events.find((event) => event.id === draft.id) ?? null)
+    : null;
+  if (!master) return [...events, provisional(newId, calendarId, input)];
+  if (draft.occurrenceStart && draft.scope === "occurrence") {
+    const occurrenceStart = draft.occurrenceStart;
+    return [
+      ...events.map((event) =>
+        event.id === master.id ? withException(master, occurrenceStart) : event,
+      ),
+      {
+        ...provisional(newId, calendarId, input),
+        recurrenceRule: null,
+        recurrenceExceptions: [],
+      },
+    ];
+  }
+  const body = draft.occurrenceStart
+    ? moveSeriesInput(master, input, draft.occurrenceStart)
+    : input;
+  return events.map((event) =>
+    event.id === master.id ? provisional(master.id, calendarId, body) : event,
+  );
+}
+
+/** The events once the draft's event (or its occurrence) is deleted. */
+export function eventsAfterDelete(
+  events: readonly ProductEvent[],
+  draft: Readonly<SkyCalendarEventDraft>,
+): ProductEvent[] {
+  if (draft.occurrenceStart && draft.scope === "occurrence") {
+    const occurrenceStart = draft.occurrenceStart;
+    return events.map((event) =>
+      event.id === draft.id ? withException(event, occurrenceStart) : event,
+    );
+  }
+  return events.filter((event) => event.id !== draft.id);
+}
+
+/**
+ * The events once one is dragged to new instants. A dragged occurrence
+ * leaves its series, which forgets that date, exactly as the save does.
+ */
+export function eventsAfterMove(
+  events: readonly ProductEvent[],
+  master: ProductEvent,
+  start: Date,
+  end: Date,
+  occurrenceStart: string | null,
+  newId: string,
+): ProductEvent[] {
+  if (occurrenceStart) {
+    return [
+      ...events.map((event) =>
+        event.id === master.id ? withException(master, occurrenceStart) : event,
+      ),
+      {
+        ...provisional(
+          newId,
+          master.calendarId,
+          eventInput(master, start, end),
+        ),
+        recurrenceRule: null,
+        recurrenceExceptions: [],
+      },
+    ];
+  }
+  return events.map((event) =>
+    event.id === master.id
+      ? provisional(
+          master.id,
+          master.calendarId,
+          eventInput(master, start, end),
+        )
+      : event,
+  );
+}
+
+/**
+ * What the grid shows while the editor is open: the draft in place, as it
+ * would be saved. Guests are left out of a preview (a half-typed address is
+ * not an error yet); a draft whose times do not hold shows nothing new.
+ */
+export function eventsWithDraft(
+  events: readonly ProductEvent[],
+  draft: Readonly<SkyCalendarEventDraft> | null,
+  calendarId: string,
+): ProductEvent[] {
+  if (!draft) return [...events];
+  const master = draft.id
+    ? (events.find((event) => event.id === draft.id) ?? null)
+    : null;
+  let input: ProductEventInput;
+  try {
+    input = inputFromDraft({ ...draft, attendees: "" }, master);
+  } catch {
+    return [...events];
+  }
+  return eventsAfterSave(
+    events,
+    draft,
+    { ...input, attendees: master?.attendees ?? [] },
+    draft.calendarId || calendarId,
+    DRAFT_EVENT_ID,
+  );
+}
+
 // ── periods ─────────────────────────────────────────────────────────────────
 
 export type SkyCalendarView = "month" | "week" | "day" | "agenda";

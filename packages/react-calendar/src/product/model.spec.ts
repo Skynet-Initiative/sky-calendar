@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { DateFnsDateAdapter } from "../date-fns/date-fns-adapter";
 import {
+  DRAFT_EVENT_ID,
   changeDraftField,
   draftFromEvent,
   emptyDraft,
+  eventsAfterDelete,
+  eventsAfterMove,
+  eventsAfterSave,
+  eventsWithDraft,
   inputFromDraft,
+  isProvisionalEvent,
   moveCursor,
   moveSeriesInput,
   nextCalendarColor,
@@ -170,5 +176,117 @@ describe("visible periods", () => {
         { id: "a", name: "A", color: "#2563eb", timeZone: "UTC" },
       ]),
     ).toBe("#7c3aed");
+  });
+});
+
+describe("the calendar as it will be", () => {
+  const meeting: ProductEvent = {
+    ...event,
+    id: "meeting",
+    title: "Weekly",
+    allDay: false,
+    start: "2026-10-26T09:00:00.000Z",
+    end: "2026-10-26T10:00:00.000Z",
+  };
+  const series: ProductEvent = {
+    ...meeting,
+    id: "series",
+    title: "Stand-up",
+    recurrenceRule: "FREQ=DAILY",
+    recurrenceExceptions: [],
+  };
+
+  it("shows a new draft as its own block, titled or not, and nothing when its times do not hold", () => {
+    const draft = emptyDraft({
+      calendarId: "cal-1",
+      start: new Date("2026-10-27T14:00:00.000Z"),
+      end: new Date("2026-10-27T15:00:00.000Z"),
+      allDay: false,
+      timeZone: "UTC",
+    });
+    const shown = eventsWithDraft([meeting], draft, "cal-1");
+    expect(shown).toHaveLength(2);
+    expect(shown[1]).toMatchObject({
+      id: DRAFT_EVENT_ID,
+      title: "",
+      start: "2026-10-27T14:00:00.000Z",
+      end: "2026-10-27T15:00:00.000Z",
+    });
+    expect(isProvisionalEvent(DRAFT_EVENT_ID)).toBe(true);
+    expect(
+      eventsWithDraft([meeting], { ...draft, end: draft.start }, "cal-1"),
+    ).toEqual([meeting]);
+    // A half-typed guest is not an error yet: the block stays.
+    expect(
+      eventsWithDraft([meeting], { ...draft, attendees: "ana@" }, "cal-1"),
+    ).toHaveLength(2);
+  });
+
+  it("moves the edited event in place instead of adding a second one", () => {
+    const draft = changeDraftField(
+      draftFromEvent(meeting, null),
+      "start",
+      "2026-10-26T11:00",
+    );
+    const shown = eventsWithDraft([meeting], draft, "cal-1");
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toMatchObject({
+      id: "meeting",
+      start: "2026-10-26T11:00:00.000Z",
+    });
+  });
+
+  it("detaches an edited occurrence and keeps the series without that date", () => {
+    const occurrence = "2026-10-28T09:00:00.000Z";
+    const draft = draftFromEvent(series, {
+      start: new Date(occurrence),
+      end: new Date("2026-10-28T10:00:00.000Z"),
+    });
+    const after = eventsAfterSave(
+      [series],
+      draft,
+      inputFromDraft(draft, series),
+      "cal-1",
+      "new",
+    );
+    expect(after[0]?.recurrenceExceptions).toEqual([occurrence]);
+    expect(after[1]).toMatchObject({
+      id: "new",
+      recurrenceRule: null,
+      start: occurrence,
+    });
+    expect(eventsAfterDelete([series], draft)[0]?.recurrenceExceptions).toEqual(
+      [occurrence],
+    );
+    expect(eventsAfterDelete([meeting], draftFromEvent(meeting, null))).toEqual(
+      [],
+    );
+  });
+
+  it("puts a dragged event where it was dropped, and a dragged occurrence on its own", () => {
+    const start = new Date("2026-10-26T13:00:00.000Z");
+    const end = new Date("2026-10-26T14:00:00.000Z");
+    expect(
+      eventsAfterMove([meeting], meeting, start, end, null, "new"),
+    ).toEqual([
+      { ...meeting, start: start.toISOString(), end: end.toISOString() },
+    ]);
+    const moved = eventsAfterMove(
+      [series],
+      series,
+      start,
+      end,
+      "2026-10-26T09:00:00.000Z",
+      "new",
+    );
+    expect(moved[0]?.recurrenceExceptions).toEqual([
+      "2026-10-26T09:00:00.000Z",
+    ]);
+    expect(moved[1]).toMatchObject({
+      id: "new",
+      recurrenceRule: null,
+      start: start.toISOString(),
+    });
+    expect(isProvisionalEvent("new")).toBe(false);
   });
 });
