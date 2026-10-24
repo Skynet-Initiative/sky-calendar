@@ -9,6 +9,7 @@
   overflow: auto;
 
   --cal-tg-hour: 3rem; /* min height of one hour row (grows to fill) */
+  --cal-tg-head-h: 3.25rem; /* height of the day-header row (the all-day band sticks under it) */
   --cal-tg-gutter-w: 3.5rem;
   --cal-tg-allday-row: 1.4rem;
 
@@ -38,8 +39,25 @@
   flex: 1 1 auto;
 }
 
+/* The day headers and the all-day band stay in view while the hours scroll
+   under them: a scrolled week must still say which column is which day. The
+   header row has a declared height so the band can stick right below it. */
+.cal-tg__corner,
+.cal-tg__headers {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 6;
+}
+.cal-tg__allday-gutter,
+.cal-tg__allday {
+  position: sticky;
+  inset-block-start: var(--cal-tg-head-h);
+  z-index: 6;
+}
+
 .cal-tg__corner {
   grid-area: corner;
+  block-size: var(--cal-tg-head-h);
   border-inline-end: 1px solid var(--cal-grid-line);
   border-block-end: 1px solid var(--cal-grid-line);
   background: var(--cal-surface-2);
@@ -52,6 +70,8 @@
 }
 
 .cal-tg__colhead {
+  box-sizing: border-box;
+  block-size: var(--cal-tg-head-h);
   padding: 0.35rem 0.25rem;
   text-align: center;
   border-inline-end: 1px solid var(--cal-grid-line);
@@ -334,6 +354,7 @@
 /* Compact density: tighter hour rows + type for dense day/week schedules. */
 .cal-time-grid-view.cal-tg--compact {
   --cal-tg-hour: 2rem;
+  --cal-tg-head-h: 2.6rem;
   --cal-tg-allday-row: 1.15rem;
 }
 .cal-time-grid-view.cal-tg--compact .cal-tg__event {
@@ -365,6 +386,12 @@
     "headers cols";
 }
 /* All-day band is omitted in week-as-rows. */
+.cal-time-grid-view.cal-tg--horizontal .cal-tg__corner,
+.cal-time-grid-view.cal-tg--horizontal .cal-tg__headers,
+.cal-time-grid-view.cal-tg--horizontal .cal-tg__colhead {
+  position: static;
+  block-size: auto;
+}
 .cal-time-grid-view.cal-tg--horizontal .cal-tg__allday-gutter,
 .cal-time-grid-view.cal-tg--horizontal .cal-tg__allday {
   display: none;
