@@ -19,8 +19,10 @@ const BUDGETS = [
   { file: "date-fns.js", kb: 6 },
   { file: "recurrence.js", kb: 6 },
   { file: "export.js", kb: 8 },
-  // Read-only product controls add 12 B gzip over the 13,303 B baseline.
-  { file: "product.js", kb: 13.125 },
+  // The product surface is built on the month, time-grid and agenda views of
+  // the main entry and shares their chunk: a host that imports only
+  // `/product` pays for the views once, here. Measured 34.1 KB on 2026-10-23.
+  { file: "product.js", kb: 36 },
 ];
 
 let failed = false;

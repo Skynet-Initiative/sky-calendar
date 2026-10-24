@@ -237,7 +237,7 @@ function eventValues(dto: CreateEventDto): unknown[] {
 
 const CALENDAR_COLUMNS = `id, workspace_id AS "workspaceId", name, color,
   time_zone AS "timeZone", created_at AS "createdAt", updated_at AS "updatedAt"`;
-const EVENT_COLUMN_LIST: ReadonlyArray<[column: string, alias?: string]> = [
+const EVENT_COLUMN_LIST: readonly [column: string, alias?: string][] = [
   ["id"],
   ["calendar_id", "calendarId"],
   ["title"],

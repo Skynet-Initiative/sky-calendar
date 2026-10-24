@@ -119,12 +119,20 @@ integration("CalendarService PostgreSQL isolation", () => {
         status: "tentative" as const,
         visibility: "private" as const,
         attendees: [
-          { email: "ana@example.com", displayName: "Ana", response: "accepted" as const },
+          {
+            email: "ana@example.com",
+            displayName: "Ana",
+            response: "accepted" as const,
+          },
         ],
         conference,
       };
 
-      const created = (await service.createEvent(workspace, first.id, input)) as {
+      const created = (await service.createEvent(
+        workspace,
+        first.id,
+        input,
+      )) as {
         id: string;
         calendarId: string;
         conference: unknown;
@@ -142,14 +150,21 @@ integration("CalendarService PostgreSQL isolation", () => {
       expect(moved.conference).toBeNull();
 
       await expect(
-        service.replaceEvent(workspace, created.id, { ...input, calendarId: elsewhere.id }),
+        service.replaceEvent(workspace, created.id, {
+          ...input,
+          calendarId: elsewhere.id,
+        }),
       ).rejects.toMatchObject({ status: 404 });
 
       const renamed = (await service.updateCalendar(workspace, second.id, {
         name: "Mine",
         color: "#dc2626",
       })) as { name: string; color: string; timeZone: string };
-      expect(renamed).toMatchObject({ name: "Mine", color: "#dc2626", timeZone: "Europe/Paris" });
+      expect(renamed).toMatchObject({
+        name: "Mine",
+        color: "#dc2626",
+        timeZone: "Europe/Paris",
+      });
       await expect(
         service.updateCalendar(foreign, second.id, { name: "Stolen" }),
       ).rejects.toMatchObject({ status: 404 });
@@ -159,7 +174,11 @@ integration("CalendarService PostgreSQL isolation", () => {
       ).rejects.toMatchObject({ status: 404 });
       await service.deleteCalendar(workspace, second.id);
       await expect(
-        service.listEvents(workspace, "2026-10-01T00:00:00.000Z", "2026-11-01T00:00:00.000Z"),
+        service.listEvents(
+          workspace,
+          "2026-10-01T00:00:00.000Z",
+          "2026-11-01T00:00:00.000Z",
+        ),
       ).resolves.toEqual([]);
       await expect(service.listCalendars(workspace)).resolves.toHaveLength(1);
     } finally {

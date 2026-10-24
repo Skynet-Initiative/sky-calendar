@@ -24,7 +24,6 @@ import {
 } from "./calendar.dto.js";
 import { CalendarService } from "./calendar.service.js";
 
-
 @Controller("workspaces/:workspaceId")
 export class CalendarController {
   constructor(private readonly service: CalendarService) {}

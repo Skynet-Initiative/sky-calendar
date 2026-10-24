@@ -1,77 +1,92 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type ChangeEvent,
   type ComponentType,
-  type DragEvent,
   type FormEvent,
-  type KeyboardEvent,
   type MouseEvent,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
-import { rrulestr } from "rrule";
+import { CalAgendaView } from "../components/agenda-view/agenda-view";
+import { CalMonthView } from "../components/month-view/month-view";
+import { CalTimeGridView } from "../components/time-grid-view/time-grid-view";
+import type { ZonedDateTime } from "../core/date-adapter/zoned-date-time";
+import type { CalendarEvent } from "../core/model/calendar-event";
+import { DateFnsDateAdapter } from "../date-fns/date-fns-adapter";
 import { eventsToCsv } from "../export/csv-export";
 import { eventsToIcs } from "../export/ics-export";
+import type { EventChange } from "../interactions/event-change";
+import { CalendarProvider } from "../provider/calendar-provider";
+import { RruleRecurrenceAdapter } from "../recurrence/rrule-adapter";
+import type { CalTokenBridge } from "../theme/apply-theme";
+import type { CalThemeMode } from "../theme/derive-theme";
+import {
+  BuiltInCalendarComposer,
+  BuiltInEventComposer,
+} from "./built-in-composers";
+import {
+  changeDraftField,
+  DAY_MS,
+  DEFAULT_CALENDAR_COLOR,
+  draftErrorMessage,
+  draftFromEvent,
+  emptyDraft,
+  eventInput,
+  inputFromDraft,
+  moveSeriesInput,
+  roundUpToSlot,
+  scheduleLabel,
+  statusColorsFor,
+  toCalendarEvent,
+  type SkyCalendarCalendarDraft,
+  type SkyCalendarEventDraft,
+  type SkyCalendarEventDraftField,
+} from "./model";
 import type {
   ProductCalendar,
   ProductEvent,
-  ProductEventInput,
   SkyCalendarTransport,
 } from "./types";
-import {
-  dateKey,
-  instantFromLocalInput,
-  instantFromWallDate,
-  localInputFromInstant,
-  localInputFromWallDate,
-  wallDateFromInstant,
-} from "./zoned-time";
+import { useCompact } from "./use-compact";
 
-type View = "month" | "week" | "day" | "agenda";
+export type SkyCalendarView = "month" | "week" | "day" | "agenda";
 
 export interface SkyCalendarWorkspaceProps {
   transport: SkyCalendarTransport;
+  /** IANA zone the calendar is displayed in. Defaults to the browser's. */
   timeZone?: string;
   locale?: string;
+  /** 0 = Sunday … 6 = Saturday. */
+  weekStartsOn?: number;
   onError?: (error: unknown) => void;
   /** Keep calendar data readable while removing every mutation affordance. */
   editable?: boolean;
+  /** Export actions. Off for hosts that offer them elsewhere, or not at all. */
   showSecondaryActions?: boolean;
+  /** The view shown first on a wide box; a narrow box always starts in Agenda. */
+  initialView?: SkyCalendarView;
   eventComposer?: ComponentType<SkyCalendarEventComposerRenderProps>;
   calendarComposer?: ComponentType<SkyCalendarCalendarComposerRenderProps>;
+  themeMode?: CalThemeMode;
+  baseColor?: string;
+  accentColor?: string;
+  /** `--cal-*` tokens deferred to the host's own CSS variables. */
+  tokenBridge?: CalTokenBridge;
 }
-
-export interface SkyCalendarEventDraft {
-  id: string | null;
-  calendarId: string;
-  title: string;
-  start: string;
-  end: string;
-  allDay: boolean;
-  location: string;
-  description: string;
-  recurrenceRule: string;
-  attendees: string;
-  timeZone: string;
-  occurrenceStart: string | null;
-  scope: "occurrence" | "series";
-}
-
-export type SkyCalendarEventDraftField = Exclude<
-  keyof SkyCalendarEventDraft,
-  "id" | "occurrenceStart" | "timeZone"
->;
 
 export interface SkyCalendarEventComposerRenderProps {
   calendars: readonly ProductCalendar[];
   draft: Readonly<SkyCalendarEventDraft>;
+  /** `false` shows the event without letting anyone change it. */
+  editable: boolean;
   error: string;
   saving: boolean;
   scheduleLabel: string;
+  /** The workspace is narrow: a host composer should take the bottom of the screen. */
+  compact: boolean;
   onChange: <Field extends SkyCalendarEventDraftField>(
     field: Field,
     value: SkyCalendarEventDraft[Field],
@@ -82,76 +97,87 @@ export interface SkyCalendarEventComposerRenderProps {
 }
 
 export interface SkyCalendarCalendarComposerRenderProps {
-  name: string;
+  draft: Readonly<SkyCalendarCalendarDraft>;
+  error: string;
   saving: boolean;
-  onChange: (name: string) => void;
+  compact: boolean;
+  onChange: (field: "name" | "color", value: string) => void;
   onClose: () => void;
+  /** Deletes the calendar and every event in it. */
+  onDelete: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }
 
-interface DisplayEvent extends ProductEvent {
-  instanceKey: string;
-}
+export type {
+  SkyCalendarCalendarDraft,
+  SkyCalendarEventDraft,
+  SkyCalendarEventDraftField,
+};
 
-interface TimeRangeSelection {
-  anchor: string;
-  current: string;
-  active: boolean;
-}
+const VIEWS: readonly { value: SkyCalendarView; label: string }[] = [
+  { value: "month", label: "Month" },
+  { value: "week", label: "Week" },
+  { value: "day", label: "Day" },
+  { value: "agenda", label: "Agenda" },
+];
+const SLOT_MINUTES = 30;
+const AGENDA_DAYS = 14;
+const COMPACT_WEEK_DAYS = 3;
+const MESSAGE_MS = 4_000;
+const FIRST_VISIBLE_HOUR = 7;
 
-interface SlotHitArea {
-  element: HTMLButtonElement;
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
-}
-
-const DAY_MS = 86_400_000;
-const HOUR_MS = 3_600_000;
-const SLOT_MINUTES = 15;
-const SLOT_MS = SLOT_MINUTES * 60_000;
-const TIME_SLOTS = Array.from(
-  { length: (24 * 60) / SLOT_MINUTES },
-  (_, index) => index * SLOT_MINUTES,
-);
-const VIEWS: readonly View[] = ["month", "week", "day", "agenda"];
+const dates = new DateFnsDateAdapter();
+const recurrence = new RruleRecurrenceAdapter();
 
 export function SkyCalendarWorkspace({
   transport,
-  timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
+  timeZone = hostZone(),
   locale,
+  weekStartsOn = 1,
   onError,
   editable = true,
   showSecondaryActions = true,
-  eventComposer: EventComposer,
-  calendarComposer: CalendarComposer,
+  initialView = "month",
+  eventComposer: EventComposer = BuiltInEventComposer,
+  calendarComposer: CalendarComposer = BuiltInCalendarComposer,
+  themeMode = "light",
+  baseColor,
+  accentColor,
+  tokenBridge,
 }: SkyCalendarWorkspaceProps) {
-  const [view, setView] = useState<View>("month");
-  const [cursor, setCursor] = useState(() =>
-    startOfDay(wallDateFromInstant(new Date(), timeZone)),
-  );
+  const root = useRef<HTMLElement>(null);
+  const compact = useCompact(root);
+  const [chosenView, setChosenView] = useState<SkyCalendarView | null>(null);
+  // A narrow box starts in Agenda, the one view that reads at a glance on a
+  // phone, until the person picks a view themselves.
+  const view = chosenView ?? (compact ? "agenda" : initialView);
+  const [cursor, setCursor] = useState(() => new Date());
   const [calendars, setCalendars] = useState<ProductCalendar[]>([]);
   const [events, setEvents] = useState<ProductEvent[]>([]);
-  const [draft, setDraft] = useState<SkyCalendarEventDraft | null>(null);
-  const [draftError, setDraftError] = useState("");
-  const [calendarDraft, setCalendarDraft] = useState("");
-  const [calendarComposerOpen, setCalendarComposerOpen] = useState(false);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
+  // The period whose data is on screen. While it lags behind the period on
+  // display, the workspace is busy and says so, without hiding what it has.
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const draftOpenerRef = useRef<HTMLButtonElement | null>(null);
-  const calendarOpenerRef = useRef<HTMLButtonElement | null>(null);
-  const draftComposerRef = useRef<HTMLElement | null>(null);
-  const calendarComposerRef = useRef<HTMLElement | null>(null);
-  const draggedKey = useRef<string | null>(null);
-  const draftOpen = draft !== null;
+  const [draft, setDraft] = useState<SkyCalendarEventDraft | null>(null);
+  const [draftError, setDraftError] = useState("");
+  const [calendarDraft, setCalendarDraft] =
+    useState<SkyCalendarCalendarDraft | null>(null);
+  const [calendarError, setCalendarError] = useState("");
+  const [now, setNow] = useState(() => new Date());
+  const opener = useRef<HTMLElement | null>(null);
+
   const period = useMemo(
-    () => visiblePeriod(cursor, view, timeZone),
-    [cursor, timeZone, view],
+    () => visiblePeriod(cursor, view, compact, timeZone, weekStartsOn),
+    [compact, cursor, timeZone, view, weekStartsOn],
   );
+
+  const periodKey = `${period.from.toISOString()}|${period.to.toISOString()}|${reloadKey}`;
+  const busy = loadedKey !== periodKey;
 
   useEffect(() => {
     let live = true;
@@ -164,302 +190,173 @@ export function SkyCalendarWorkspace({
         setCalendars(nextCalendars);
         setEvents(nextEvents);
         setLoadFailed(false);
-        setMessage("");
       })
       .catch((error: unknown) => {
         if (!live) return;
         setLoadFailed(true);
-        setMessage("");
         onError?.(error);
       })
       .finally(() => {
-        if (live) setLoading(false);
+        if (!live) return;
+        setLoading(false);
+        setLoadedKey(periodKey);
       });
     return () => {
       live = false;
     };
-  }, [onError, period.from, period.to, reloadKey, transport]);
+  }, [onError, period.from, period.to, periodKey, reloadKey, transport]);
 
   useEffect(() => {
-    const defaultDraftOpen = draftOpen && !EventComposer;
-    const defaultCalendarComposerOpen =
-      calendarComposerOpen && !CalendarComposer;
-    if (!defaultDraftOpen && !defaultCalendarComposerOpen) return;
+    if (!message) return;
+    const timer = setTimeout(() => setMessage(""), MESSAGE_MS);
+    return () => clearTimeout(timer);
+  }, [message]);
 
-    function handleOutsidePointer(event: PointerEvent) {
-      if (!(event.target instanceof Node)) return;
-      if (
-        defaultDraftOpen &&
-        !draftComposerRef.current?.contains(event.target) &&
-        !draftOpenerRef.current?.contains(event.target)
-      ) {
-        setDraft(null);
-      }
-      if (
-        defaultCalendarComposerOpen &&
-        !calendarComposerRef.current?.contains(event.target) &&
-        !calendarOpenerRef.current?.contains(event.target)
-      ) {
-        setCalendarComposerOpen(false);
-      }
+  const timeGrid = view === "week" || view === "day";
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // A day starts at midnight in the grid, but nobody's day does: open on
+  // the morning, once per period, unless the person already scrolled.
+  useEffect(() => {
+    if (!timeGrid || loading) return;
+    const grid = root.current?.querySelector<HTMLElement>(".cal-tg");
+    if (grid && grid.scrollTop === 0) {
+      grid.scrollTop = (grid.scrollHeight * FIRST_VISIBLE_HOUR) / 24;
     }
+  }, [loading, period.from, timeGrid]);
 
-    document.addEventListener("pointerdown", handleOutsidePointer);
-    return () =>
-      document.removeEventListener("pointerdown", handleOutsidePointer);
-  }, [calendarComposerOpen, draftOpen, CalendarComposer, EventComposer]);
+  function setView(next: SkyCalendarView) {
+    setChosenView(next);
+  }
 
   function report(error: unknown, fallback: string) {
     setMessage(fallback);
     onError?.(error);
   }
 
+  const visibleEvents = useMemo(
+    () =>
+      events
+        .filter((event) => !hidden.has(event.calendarId))
+        .map((event) => toCalendarEvent(event, editable)),
+    [editable, events, hidden],
+  );
+  const statusColors = useMemo(() => statusColorsFor(calendars), [calendars]);
+
+  // ── events ────────────────────────────────────────────────────────────────
+
   async function ensureCalendar(): Promise<ProductCalendar> {
     const existing = calendars[0];
     if (existing) return existing;
     const created = await transport.createCalendar({
       name: "Calendar",
-      color: "#2563eb",
+      color: DEFAULT_CALENDAR_COLOR,
       timeZone,
     });
     setCalendars([created]);
     return created;
   }
 
-  function openCreate(start: Date, allDay = false, selectedEnd?: Date) {
+  function openCreate(start: Date, end: Date, allDay = false) {
     if (!editable) return;
-    setCalendarComposerOpen(false);
+    setCalendarDraft(null);
     setDraftError("");
-    const normalizedStart = allDay ? startOfDay(start) : start;
-    const calendarId = calendars[0]?.id ?? "";
-    const end =
-      selectedEnd ??
-      new Date(normalizedStart.getTime() + (allDay ? DAY_MS : HOUR_MS));
-    setDraft({
-      id: null,
-      calendarId,
-      title: "",
-      start: localInputFromWallDate(normalizedStart),
-      end: localInputFromWallDate(end),
-      allDay,
-      location: "",
-      description: "",
-      recurrenceRule: "",
-      attendees: "",
-      timeZone,
-      occurrenceStart: null,
-      scope: "series",
-    });
+    setDraft(
+      emptyDraft({
+        calendarId:
+          calendars.find((c) => !hidden.has(c.id))?.id ??
+          calendars[0]?.id ??
+          "",
+        start,
+        end,
+        allDay,
+        timeZone,
+      }),
+    );
   }
 
   function handleCreateNow(event: MouseEvent<HTMLButtonElement>) {
-    draftOpenerRef.current = event.currentTarget;
-    const now = wallDateFromInstant(new Date(), timeZone);
-    now.setUTCMinutes(Math.ceil(now.getUTCMinutes() / 15) * 15, 0, 0);
-    openCreate(now);
+    opener.current = event.currentTarget;
+    const start = roundUpToSlot(new Date(), timeZone, SLOT_MINUTES);
+    openCreate(start, new Date(start.getTime() + 3_600_000));
   }
 
-  function openCalendarComposer(event: MouseEvent<HTMLButtonElement>) {
-    if (!editable) return;
-    calendarOpenerRef.current = event.currentTarget;
-    setDraft(null);
-    setCalendarDraft("");
-    setCalendarComposerOpen(true);
-  }
-
-  function closeCalendarComposer() {
-    setCalendarComposerOpen(false);
-    calendarOpenerRef.current?.focus();
-  }
-
-  function handleCalendarComposerKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    closeCalendarComposer();
-  }
-
-  async function saveCalendar(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!editable) return;
-    if (!calendarDraft.trim() || saving) return;
-    setSaving(true);
-    try {
-      const created = await transport.createCalendar({
-        name: calendarDraft.trim(),
-        color: "#2563eb",
-        timeZone,
-      });
-      setCalendars((current) => [...current, created]);
-      closeCalendarComposer();
-      setMessage("Calendar created.");
-    } catch (error) {
-      report(error, "The calendar could not be created.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function changeCalendarName(event: ChangeEvent<HTMLInputElement>) {
-    setCalendarDraft(event.currentTarget.value);
-  }
-
-  function handleSlotClick(event: MouseEvent<HTMLButtonElement>) {
-    if (!editable) return;
-    const value = event.currentTarget.dataset.start;
-    if (value) {
-      draftOpenerRef.current = event.currentTarget;
-      const start = new Date(value);
-      const allDay = event.currentTarget.dataset.allDay === "true";
-      openCreate(
-        start,
-        allDay,
-        allDay ? undefined : new Date(start.getTime() + SLOT_MS),
-      );
-    }
-  }
-
-  function handleMonthDayClick(event: MouseEvent<HTMLButtonElement>) {
-    const value = event.currentTarget.dataset.start;
-    if (!value) return;
-    setDraft(null);
-    setCalendarComposerOpen(false);
-    setCursor(startOfDay(new Date(value)));
-    setView("day");
-  }
-
-  function handleTimeRangeSelect(
-    start: Date,
-    end: Date,
-    opener: HTMLButtonElement,
-  ) {
-    if (!editable) return;
-    draftOpenerRef.current = opener;
-    openCreate(start, false, end);
-  }
-
-  function handleEventClick(event: MouseEvent<HTMLButtonElement>) {
-    if (!editable) return;
-    const instanceKey = event.currentTarget.dataset.instanceKey;
-    const item = displayEvents.find(
-      (candidate) => candidate.instanceKey === instanceKey,
-    );
-    if (!item) return;
-    draftOpenerRef.current = event.currentTarget;
-    setCalendarComposerOpen(false);
+  function openEvent(event: CalendarEvent<ProductEvent>) {
+    const product = event.meta;
+    if (!product) return;
+    opener.current = document.activeElement as HTMLElement | null;
+    setCalendarDraft(null);
     setDraftError("");
-    setDraft({
-      id: item.id,
-      calendarId: item.calendarId,
-      title: item.title,
-      start: localInputFromInstant(new Date(item.start), item.timeZone),
-      end: localInputFromInstant(new Date(item.end), item.timeZone),
-      allDay: item.allDay,
-      location: item.location ?? "",
-      description: item.description ?? "",
-      recurrenceRule: item.recurrenceRule ?? "",
-      attendees: item.attendees.map((attendee) => attendee.email).join(", "),
-      timeZone: item.timeZone,
-      occurrenceStart: item.recurrenceRule ? item.start : null,
-      scope: item.recurrenceRule ? "occurrence" : "series",
-    });
-  }
-
-  function handleView(event: MouseEvent<HTMLButtonElement>) {
-    const value = event.currentTarget.value as View;
-    if (VIEWS.includes(value)) setView(value);
-  }
-
-  function previous() {
-    setCursor((current) => moveCursor(current, view, -1));
-  }
-
-  function next() {
-    setCursor((current) => moveCursor(current, view, 1));
-  }
-
-  function today() {
-    setCursor(startOfDay(wallDateFromInstant(new Date(), timeZone)));
-  }
-
-  function retryLoad() {
-    setLoading(true);
-    setLoadFailed(false);
-    setReloadKey((current) => current + 1);
+    setDraft(
+      draftFromEvent(
+        product,
+        event.recurrenceId
+          ? {
+              start: toInstant(event.start),
+              end: toInstant(event.end ?? event.start),
+            }
+          : null,
+      ),
+    );
   }
 
   function closeDraft() {
     setDraft(null);
-    draftOpenerRef.current?.focus();
+    opener.current?.focus();
+    opener.current = null;
   }
 
-  function handleDraftComposerKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    closeDraft();
-  }
+  const changeDraft = useCallback(
+    <Field extends SkyCalendarEventDraftField>(
+      field: Field,
+      value: SkyCalendarEventDraft[Field],
+    ) => {
+      setDraft((current) =>
+        current ? changeDraftField(current, field, value) : current,
+      );
+    },
+    [],
+  );
 
-  function handleDraftChange(
-    event: ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
-  ) {
-    const target = event.currentTarget;
-    changeDraft(
-      target.name as SkyCalendarEventDraftField,
-      target instanceof HTMLInputElement && target.type === "checkbox"
-        ? target.checked
-        : target.value,
-    );
-  }
-
-  function changeDraft<Field extends SkyCalendarEventDraftField>(
-    field: Field,
-    value: SkyCalendarEventDraft[Field],
-  ) {
-    setDraft((current) => {
-      if (!current) return current;
-      return { ...current, [field]: value };
-    });
+  function upsert(saved: ProductEvent) {
+    setEvents((current) => [
+      ...current.filter((item) => item.id !== saved.id),
+      saved,
+    ]);
   }
 
   async function saveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editable || !draft || !draft.title.trim() || saving) return;
-    let input: ProductEventInput;
+    const master = draft.id
+      ? (events.find((item) => item.id === draft.id) ?? null)
+      : null;
+    let input;
     try {
-      input = draftInput(draft);
-      if (Date.parse(input.start) >= Date.parse(input.end)) {
-        setDraftError("The end must be after the start.");
-        return;
-      }
-    } catch {
-      setDraftError(
-        "This local time does not exist in the selected time zone.",
-      );
-      return;
-    }
-    if (!validAttendees(draft.attendees)) {
-      setDraftError("Enter valid guest email addresses separated by commas.");
+      input = inputFromDraft(draft, master);
+    } catch (error) {
+      setDraftError(draftErrorMessage(error));
       return;
     }
     setDraftError("");
     setSaving(true);
     try {
-      const calendar = draft.calendarId
-        ? (calendars.find((item) => item.id === draft.calendarId) ??
-          (await ensureCalendar()))
-        : await ensureCalendar();
-      if (draft.id && draft.occurrenceStart && draft.scope === "occurrence") {
-        const master = events.find((item) => item.id === draft.id);
-        if (!master) throw new Error("Recurring event master not found");
-        const saved = await transport.createEvent(calendar.id, {
+      const calendar =
+        calendars.find((item) => item.id === draft.calendarId) ??
+        (await ensureCalendar());
+      if (master && draft.occurrenceStart && draft.scope === "occurrence") {
+        // One occurrence becomes its own event; the series forgets that date.
+        const detached = await transport.createEvent(calendar.id, {
           ...input,
           recurrenceRule: undefined,
           recurrenceExceptions: [],
         });
-        let exception: ProductEvent;
+        let series: ProductEvent;
         try {
-          exception = await transport.replaceEvent(
+          series = await transport.replaceEvent(
             master.id,
             eventInput(master, new Date(master.start), new Date(master.end), [
               ...new Set([
@@ -469,35 +366,30 @@ export function SkyCalendarWorkspace({
             ]),
           );
         } catch (error) {
-          await transport.deleteEvent(saved.id).catch(() => undefined);
+          await transport.deleteEvent(detached.id).catch(() => undefined);
           throw error;
         }
-        setEvents((current) => [
-          ...current.filter((item) => item.id !== exception.id),
-          exception,
-          saved,
-        ]);
+        upsert(series);
+        upsert(detached);
+      } else if (master) {
+        const body = draft.occurrenceStart
+          ? moveSeriesInput(master, input, draft.occurrenceStart)
+          : input;
+        const saved = await transport.replaceEvent(master.id, {
+          ...body,
+          ...(calendar.id !== master.calendarId
+            ? { calendarId: calendar.id }
+            : {}),
+        });
+        upsert(saved);
       } else {
-        const master = draft.id
-          ? events.find((item) => item.id === draft.id)
-          : undefined;
-        const seriesInput =
-          master && draft.occurrenceStart
-            ? moveSeriesInput(master, input, draft.occurrenceStart)
-            : input;
-        const saved = draft.id
-          ? await transport.replaceEvent(draft.id, seriesInput)
-          : await transport.createEvent(calendar.id, seriesInput);
-        setEvents((current) => [
-          ...current.filter((item) => item.id !== saved.id),
-          saved,
-        ]);
+        upsert(await transport.createEvent(calendar.id, input));
       }
       closeDraft();
-      setMessage(draft.id ? "Event updated." : "Event created.");
+      setMessage(master ? "Event updated." : "Event created.");
     } catch (error) {
       setDraftError("The event could not be saved.");
-      report(error, "The event could not be saved.");
+      onError?.(error);
     } finally {
       setSaving(false);
     }
@@ -505,24 +397,25 @@ export function SkyCalendarWorkspace({
 
   async function deleteDraft() {
     if (!editable || !draft?.id || saving) return;
+    const master = events.find((item) => item.id === draft.id);
+    if (!master) return;
     setSaving(true);
     try {
       if (draft.occurrenceStart && draft.scope === "occurrence") {
-        const master = events.find((item) => item.id === draft.id);
-        if (!master) throw new Error("Recurring event master not found");
-        const saved = await transport.replaceEvent(
-          master.id,
-          eventInput(master, new Date(master.start), new Date(master.end), [
-            ...master.recurrenceExceptions,
-            draft.occurrenceStart,
-          ]),
-        );
-        setEvents((current) =>
-          current.map((item) => (item.id === saved.id ? saved : item)),
+        upsert(
+          await transport.replaceEvent(
+            master.id,
+            eventInput(master, new Date(master.start), new Date(master.end), [
+              ...new Set([
+                ...master.recurrenceExceptions,
+                draft.occurrenceStart,
+              ]),
+            ]),
+          ),
         );
       } else {
-        await transport.deleteEvent(draft.id);
-        setEvents((current) => current.filter((item) => item.id !== draft.id));
+        await transport.deleteEvent(master.id);
+        setEvents((current) => current.filter((item) => item.id !== master.id));
       }
       closeDraft();
       setMessage("Event deleted.");
@@ -533,74 +426,174 @@ export function SkyCalendarWorkspace({
     }
   }
 
-  function handleDragStart(event: DragEvent<HTMLButtonElement>) {
+  /** A drag or a resize in the grid: the same event, new instants. */
+  async function commitChange(change: EventChange<ProductEvent>) {
     if (!editable) return;
-    draggedKey.current = event.currentTarget.dataset.instanceKey ?? null;
-    if (draggedKey.current)
-      event.dataTransfer.setData("text/plain", draggedKey.current);
-  }
-
-  function allowDrop(event: DragEvent<HTMLElement>) {
-    if (!editable) return;
-    event.preventDefault();
-  }
-
-  async function handleDrop(event: DragEvent<HTMLElement>) {
-    event.preventDefault();
-    if (!editable) return;
-    const instanceKey =
-      draggedKey.current ?? event.dataTransfer.getData("text/plain");
-    const startValue = event.currentTarget.dataset.start;
-    const item = displayEvents.find(
-      (candidate) => candidate.instanceKey === instanceKey,
-    );
-    if (!item || !startValue) return;
-    if (item.recurrenceRule) {
-      setMessage(
-        "Open a repeating event to choose this occurrence or the series.",
-      );
-      draggedKey.current = null;
+    if (change.kind === "create") {
+      if (change.start && change.end) {
+        openCreate(toInstant(change.start), toInstant(change.end));
+      }
       return;
     }
-    const oldStart = new Date(item.start);
-    const newWallStart = new Date(startValue);
-    if (event.currentTarget.dataset.preserveTime === "true") {
-      const oldWallStart = wallDateFromInstant(oldStart, timeZone);
-      newWallStart.setUTCHours(
-        oldWallStart.getUTCHours(),
-        oldWallStart.getUTCMinutes(),
-        0,
-        0,
-      );
-    }
-    const newStart = instantFromWallDate(newWallStart, timeZone);
-    const duration = new Date(item.end).getTime() - oldStart.getTime();
-    const input = eventInput(
-      item,
-      newStart,
-      new Date(newStart.getTime() + duration),
-    );
+    const master = change.event?.meta;
+    if (!master || !change.start || !change.end) return;
+    const start = toInstant(change.start);
+    const end = toInstant(change.end);
     try {
-      const saved = await transport.replaceEvent(item.id, input);
-      setEvents((current) =>
-        current.map((candidate) =>
-          candidate.id === saved.id ? saved : candidate,
-        ),
-      );
+      if (change.event?.recurrenceId) {
+        const occurrenceStart = toInstant(change.event.start).toISOString();
+        const detached = await transport.createEvent(master.calendarId, {
+          ...eventInput(master, start, end, []),
+          recurrenceRule: undefined,
+        });
+        try {
+          upsert(
+            await transport.replaceEvent(
+              master.id,
+              eventInput(master, new Date(master.start), new Date(master.end), [
+                ...new Set([...master.recurrenceExceptions, occurrenceStart]),
+              ]),
+            ),
+          );
+        } catch (error) {
+          await transport.deleteEvent(detached.id).catch(() => undefined);
+          throw error;
+        }
+        upsert(detached);
+      } else {
+        upsert(
+          await transport.replaceEvent(
+            master.id,
+            eventInput(master, start, end),
+          ),
+        );
+      }
       setMessage("Event moved.");
     } catch (error) {
       report(error, "The event could not be moved.");
-    } finally {
-      draggedKey.current = null;
     }
   }
 
-  async function exportEvents(event: MouseEvent<HTMLButtonElement>) {
-    const format = event.currentTarget.value === "csv" ? "csv" : "ics";
+  // ── calendars ─────────────────────────────────────────────────────────────
+
+  function openCalendarComposer(
+    event: MouseEvent<HTMLButtonElement>,
+    calendar: ProductCalendar | null,
+  ) {
+    if (!editable) return;
+    opener.current = event.currentTarget;
+    setDraft(null);
+    setCalendarError("");
+    setCalendarDraft(
+      calendar
+        ? { id: calendar.id, name: calendar.name, color: calendar.color }
+        : { id: null, name: "", color: nextColor(calendars) },
+    );
+  }
+
+  function closeCalendarComposer() {
+    setCalendarDraft(null);
+    opener.current?.focus();
+    opener.current = null;
+  }
+
+  const changeCalendarDraft = useCallback(
+    (field: "name" | "color", value: string) => {
+      setCalendarDraft((current) =>
+        current ? { ...current, [field]: value } : current,
+      );
+    },
+    [],
+  );
+
+  async function saveCalendar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editable || !calendarDraft || saving) return;
+    const name = calendarDraft.name.trim();
+    if (!name) {
+      setCalendarError("Give the calendar a name.");
+      return;
+    }
+    setCalendarError("");
     setSaving(true);
     try {
-      const allEvents = await transport.exportEvents();
-      const exportable = allEvents.map((item) => ({
+      if (calendarDraft.id) {
+        const saved = await transport.updateCalendar(calendarDraft.id, {
+          name,
+          color: calendarDraft.color,
+        });
+        setCalendars((current) =>
+          current.map((item) => (item.id === saved.id ? saved : item)),
+        );
+        setMessage("Calendar updated.");
+      } else {
+        const created = await transport.createCalendar({
+          name,
+          color: calendarDraft.color,
+          timeZone,
+        });
+        setCalendars((current) => [...current, created]);
+        setMessage("Calendar created.");
+      }
+      closeCalendarComposer();
+    } catch (error) {
+      setCalendarError("The calendar could not be saved.");
+      onError?.(error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteCalendar() {
+    if (!editable || !calendarDraft?.id || saving) return;
+    const id = calendarDraft.id;
+    setSaving(true);
+    try {
+      await transport.deleteCalendar(id);
+      setCalendars((current) => current.filter((item) => item.id !== id));
+      setEvents((current) => current.filter((item) => item.calendarId !== id));
+      closeCalendarComposer();
+      setMessage("Calendar deleted.");
+    } catch (error) {
+      setCalendarError("The calendar could not be deleted.");
+      onError?.(error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleCalendar(id: string) {
+    setHidden((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // ── navigation ────────────────────────────────────────────────────────────
+
+  function step(direction: -1 | 1) {
+    setCursor((current) =>
+      moveCursor(current, view, compact, timeZone, direction),
+    );
+  }
+
+  function goToday() {
+    setCursor(new Date());
+  }
+
+  function retryLoad() {
+    setLoading(true);
+    setLoadFailed(false);
+    setReloadKey((current) => current + 1);
+  }
+
+  async function exportAs(format: "ics" | "csv") {
+    setSaving(true);
+    try {
+      const all = await transport.exportEvents();
+      const exportable = all.map((item) => ({
         id: item.id,
         title: item.title,
         description: item.description ?? undefined,
@@ -618,11 +611,10 @@ export function SkyCalendarWorkspace({
         ),
       }));
       const ics = format === "ics";
-      const contents = ics
-        ? eventsToIcs(exportable, { zone: timeZone })
-        : eventsToCsv(exportable);
       downloadFile(
-        contents,
+        ics
+          ? eventsToIcs(exportable, { zone: timeZone })
+          : eventsToCsv(exportable),
         ics ? "text/calendar;charset=utf-8" : "text/csv;charset=utf-8",
         `sky-calendar.${format}`,
       );
@@ -634,1225 +626,479 @@ export function SkyCalendarWorkspace({
     }
   }
 
-  const days = viewDays(cursor, view);
-  const title = periodTitle(cursor, view, locale);
-  const displayEvents = expandRecurrences(events, period.from, period.to);
+  // ── render ────────────────────────────────────────────────────────────────
+
+  const title = periodTitle(period, view, locale, timeZone);
+  const todayVisible = now >= period.from && now < period.to;
+  const themeProps = {
+    themeMode,
+    statusColors,
+    ...(baseColor ? { baseColor } : {}),
+    ...(accentColor ? { accentColor } : {}),
+  };
+  const viewProps = {
+    events: visibleEvents,
+    viewDate: period.viewDate,
+    today: now,
+    timezone: timeZone,
+    locale: locale ?? null,
+    weekStartsOn,
+    eventClicked: ({ event }: { event: CalendarEvent<ProductEvent> }) =>
+      openEvent(event),
+    ...themeProps,
+  };
 
   return (
-    <section className="skycal" aria-labelledby="skycal-title">
-      <header className="skycal__header">
-        <h1 id="skycal-title">
-          {title}
-          {editable ? null : " (read-only)"}
-        </h1>
-        <div className="skycal__primary-actions">
-          <button
-            className="skycal__button skycal__button--primary"
-            type="button"
-            onClick={handleCreateNow}
-            hidden={!editable}
-          >
-            New event
-          </button>
-          {showSecondaryActions ? (
-            <>
-              <button
-                className="skycal__button"
-                type="button"
-                onClick={openCalendarComposer}
-                hidden={!editable}
-              >
-                New calendar
-              </button>
-              <button
-                className="skycal__button"
-                type="button"
-                value="ics"
-                onClick={exportEvents}
-                disabled={saving}
-              >
-                Export ICS
-              </button>
-              <button
-                className="skycal__button"
-                type="button"
-                value="csv"
-                onClick={exportEvents}
-                disabled={saving}
-              >
-                Export CSV
-              </button>
-            </>
-          ) : null}
-        </div>
-      </header>
-      <div
-        className="skycal__toolbar"
-        role="toolbar"
-        aria-label="Calendar controls"
+    <CalendarProvider
+      dateAdapter={dates}
+      recurrenceAdapter={recurrence}
+      {...(tokenBridge ? { tokenBridge } : {})}
+      defaults={{
+        ...(locale ? { locale } : {}),
+        weekStartsOn,
+        timezone: timeZone,
+        slotMinutes: SLOT_MINUTES,
+        snapMinutes: 15,
+      }}
+    >
+      <section
+        className={[
+          "skycal",
+          compact ? "skycal--compact" : "",
+          busy && !loading ? "skycal--busy" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        aria-labelledby="skycal-title"
+        aria-busy={busy}
+        ref={root}
       >
-        <div className="skycal__button-group">
-          <button
-            className="skycal__icon-button"
-            type="button"
-            onClick={previous}
-            aria-label="Previous period"
+        <header className="skycal__header">
+          <div className="skycal__nav">
+            <button
+              className="skycal__icon-button"
+              type="button"
+              onClick={() => step(-1)}
+              aria-label="Previous period"
+            >
+              <Chevron direction="left" />
+            </button>
+            <button
+              className="skycal__icon-button"
+              type="button"
+              onClick={() => step(1)}
+              aria-label="Next period"
+            >
+              <Chevron direction="right" />
+            </button>
+            <h1 id="skycal-title" className="skycal__title">
+              {title}
+            </h1>
+            <button
+              className="skycal__button skycal__button--quiet"
+              type="button"
+              onClick={goToday}
+              hidden={todayVisible}
+            >
+              Today
+            </button>
+          </div>
+          <div className="skycal__actions">
+            <div
+              className="skycal__segmented"
+              role="group"
+              aria-label="Calendar view"
+            >
+              {VIEWS.map((item) => (
+                <button
+                  key={item.value}
+                  className="skycal__segment"
+                  type="button"
+                  aria-pressed={view === item.value}
+                  onClick={() => setView(item.value)}
+                >
+                  {compact && item.value === "week" ? "3 days" : item.label}
+                </button>
+              ))}
+            </div>
+            {showSecondaryActions ? (
+              <div className="skycal__secondary">
+                <button
+                  className="skycal__button skycal__button--quiet"
+                  type="button"
+                  onClick={() => void exportAs("ics")}
+                  disabled={saving}
+                >
+                  Export ICS
+                </button>
+                <button
+                  className="skycal__button skycal__button--quiet"
+                  type="button"
+                  onClick={() => void exportAs("csv")}
+                  disabled={saving}
+                >
+                  Export CSV
+                </button>
+              </div>
+            ) : null}
+            {editable ? (
+              <button
+                className="skycal__button skycal__button--primary skycal__new"
+                type="button"
+                onClick={handleCreateNow}
+              >
+                <Plus />
+                <span>New event</span>
+              </button>
+            ) : null}
+          </div>
+        </header>
+
+        {calendars.length > 0 || editable ? (
+          <div
+            className="skycal__calendars"
+            role="group"
+            aria-label="Calendars"
           >
-            ‹
-          </button>
-          <button
-            className="skycal__button"
-            type="button"
-            onClick={today}
-            hidden={new Date() >= period.from && new Date() < period.to}
-          >
-            Today
-          </button>
-          <button
-            className="skycal__icon-button"
-            type="button"
-            onClick={next}
-            aria-label="Next period"
-          >
-            ›
-          </button>
-        </div>
-        <div
-          className="skycal__button-group"
-          role="group"
-          aria-label="Calendar view"
-        >
-          {VIEWS.map((item) => (
+            {calendars.map((calendar) => {
+              const shown = !hidden.has(calendar.id);
+              return (
+                <span key={calendar.id} className="skycal__calendar">
+                  <button
+                    type="button"
+                    className="skycal__calendar-toggle"
+                    aria-pressed={shown}
+                    onClick={() => toggleCalendar(calendar.id)}
+                    style={
+                      {
+                        "--calendar-color": calendar.color,
+                      } as React.CSSProperties
+                    }
+                  >
+                    <span className="skycal__dot" aria-hidden="true" />
+                    <span className="skycal__calendar-name">
+                      {calendar.name}
+                    </span>
+                  </button>
+                  {editable ? (
+                    <button
+                      type="button"
+                      className="skycal__calendar-edit"
+                      aria-label={`Edit calendar ${calendar.name}`}
+                      onClick={(event) => openCalendarComposer(event, calendar)}
+                    >
+                      <Pencil />
+                    </button>
+                  ) : null}
+                </span>
+              );
+            })}
+            {editable ? (
+              <button
+                type="button"
+                className="skycal__calendar-add"
+                onClick={(event) => openCalendarComposer(event, null)}
+              >
+                <Plus />
+                <span>Calendar</span>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <p className="skycal__notice" role="status" aria-live="polite">
+          {message}
+        </p>
+
+        {loading ? (
+          <p className="skycal__state" role="status">
+            Loading calendar…
+          </p>
+        ) : loadFailed ? (
+          <div className="skycal__state" role="alert">
+            <strong>Calendar unavailable</strong>
+            <span>
+              Your events are unchanged. Check your connection and try again.
+            </span>
             <button
               className="skycal__button"
               type="button"
-              key={item}
-              value={item}
-              aria-pressed={view === item}
-              onClick={handleView}
+              onClick={retryLoad}
             >
-              {capitalize(item)}
+              Try again
             </button>
-          ))}
-        </div>
-      </div>
-      {message ? (
-        <p className="skycal__notice" role="status">
-          {message}
-        </p>
-      ) : null}
-      {loading ? (
-        <p className="skycal__state" role="status">
-          Loading calendar…
-        </p>
-      ) : null}
-      {!loading && loadFailed ? (
-        <div className="skycal__state" role="alert">
-          <strong>Calendar unavailable</strong>
-          <span>
-            Your events are unchanged. Check your connection and try again.
-          </span>
-          <button className="skycal__button" type="button" onClick={retryLoad}>
-            Try again
-          </button>
-        </div>
-      ) : null}
-      {!loading && !loadFailed && view === "month" ? (
-        <Month
-          days={days}
-          events={displayEvents}
-          editable={editable}
-          locale={locale}
-          timeZone={timeZone}
-          onSlotClick={handleMonthDayClick}
-          onEventClick={handleEventClick}
-          onDragStart={handleDragStart}
-          onDragOver={allowDrop}
-          onDrop={handleDrop}
-        />
-      ) : null}
-      {!loading && !loadFailed && (view === "week" || view === "day") ? (
-        <TimeGrid
-          days={days}
-          events={displayEvents}
-          editable={editable}
-          locale={locale}
-          timeZone={timeZone}
-          draft={draft}
-          onSlotClick={handleSlotClick}
-          onEventClick={handleEventClick}
-          onDragStart={handleDragStart}
-          onDragOver={allowDrop}
-          onDrop={handleDrop}
-          onTimeRangeSelect={handleTimeRangeSelect}
-        />
-      ) : null}
-      {!loading && !loadFailed && view === "agenda" ? (
-        <Agenda
-          events={displayEvents}
-          editable={editable}
-          locale={locale}
-          timeZone={timeZone}
-          onEventClick={handleEventClick}
-        />
-      ) : null}
-      {editable && draft && EventComposer ? (
-        <EventComposer
-          calendars={calendars}
-          draft={draft}
-          error={draftError}
-          saving={saving}
-          scheduleLabel={draftScheduleLabel(draft, locale)}
-          onChange={changeDraft}
-          onClose={closeDraft}
-          onDelete={deleteDraft}
-          onSubmit={saveDraft}
-        />
-      ) : null}
-      {editable && draft && !EventComposer ? (
-        <aside
-          className="skycal__composer"
-          ref={draftComposerRef}
-          role="dialog"
-          aria-modal="false"
-          aria-labelledby="skycal-event-composer-title"
-          aria-describedby={draftError ? "skycal-form-error" : undefined}
-          onKeyDown={handleDraftComposerKeyDown}
-        >
-          <form className="skycal__form" onSubmit={saveDraft}>
-            <div className="skycal__composer-heading">
-              <h2 id="skycal-event-composer-title">
-                {draft.id ? "Edit event" : "New event"}
-              </h2>
-              <button
-                className="skycal__icon-button"
-                type="button"
-                onClick={closeDraft}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-            <label className="skycal__field skycal__field--wide">
-              <span>Title</span>
-              <input
-                name="title"
-                value={draft.title}
-                onChange={handleDraftChange}
-                placeholder="Add title"
-                maxLength={300}
-                required
-                autoFocus
+          </div>
+        ) : (
+          <div className="skycal__body">
+            {view === "month" ? (
+              <CalMonthView
+                {...viewProps}
+                maxLanes={compact ? 2 : 4}
+                daySelected={({ date }) => {
+                  setCursor(toInstant(date));
+                  setView("day");
+                }}
               />
-            </label>
-            {draftError ? (
-              <p
-                className="skycal__form-error"
-                id="skycal-form-error"
-                role="alert"
-              >
-                {draftError}
+            ) : null}
+            {timeGrid ? (
+              <CalTimeGridView
+                {...viewProps}
+                days={view === "day" ? 1 : compact ? COMPACT_WEEK_DAYS : 7}
+                anchorToWeek={view === "week" && !compact}
+                now={now}
+                editable={editable}
+                inlineEdit={false}
+                density={compact ? "compact" : "comfortable"}
+                slotSelected={({ date }) => {
+                  const start = toInstant(date);
+                  openCreate(
+                    start,
+                    new Date(start.getTime() + SLOT_MINUTES * 60_000),
+                  );
+                }}
+                eventChanged={(change) => void commitChange(change)}
+              />
+            ) : null}
+            {view === "agenda" ? (
+              <CalAgendaView {...viewProps} days={AGENDA_DAYS} hideEmptyDays />
+            ) : null}
+            {!busy && events.length === 0 && view === "agenda" ? (
+              <p className="skycal__empty">
+                {editable
+                  ? "Nothing planned. Tap New event to add something."
+                  : "Nothing planned in this period."}
               </p>
             ) : null}
-            <p className="skycal__schedule">
-              <time dateTime={draft.start}>
-                {draftScheduleLabel(draft, locale)}
-              </time>
-            </p>
-            <details className="skycal__details">
-              <summary>Date, time &amp; more options</summary>
-              <div className="skycal__form-row">
-                <label className="skycal__field">
-                  <span>Starts</span>
-                  <input
-                    name="start"
-                    type="datetime-local"
-                    value={draft.start}
-                    onChange={handleDraftChange}
-                    required
-                  />
-                </label>
-                <label className="skycal__field">
-                  <span>Ends</span>
-                  <input
-                    name="end"
-                    type="datetime-local"
-                    value={draft.end}
-                    onChange={handleDraftChange}
-                    required
-                  />
-                </label>
-              </div>
-              <label className="skycal__check">
-                <input
-                  name="allDay"
-                  type="checkbox"
-                  checked={draft.allDay}
-                  onChange={handleDraftChange}
-                />
-                All day
-              </label>
-              <p className="skycal__field-note">Time zone: {draft.timeZone}</p>
-              {calendars.length > 1 ? (
-                <label className="skycal__field">
-                  <span>Calendar</span>
-                  <select
-                    name="calendarId"
-                    value={draft.calendarId}
-                    onChange={handleDraftChange}
-                  >
-                    {calendars.map((calendar) => (
-                      <option key={calendar.id} value={calendar.id}>
-                        {calendar.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              <label className="skycal__field">
-                <span>Location</span>
-                <input
-                  name="location"
-                  value={draft.location}
-                  onChange={handleDraftChange}
-                  maxLength={500}
-                />
-              </label>
-              {draft.occurrenceStart ? (
-                <label className="skycal__field">
-                  <span>Apply changes to</span>
-                  <select
-                    name="scope"
-                    value={draft.scope}
-                    onChange={handleDraftChange}
-                  >
-                    <option value="occurrence">This occurrence</option>
-                    <option value="series">Entire series</option>
-                  </select>
-                </label>
-              ) : null}
-              <label className="skycal__field">
-                <span>Description</span>
-                <textarea
-                  name="description"
-                  value={draft.description}
-                  onChange={handleDraftChange}
-                  maxLength={10000}
-                  rows={3}
-                />
-              </label>
-              <label className="skycal__field">
-                <span>Repeat</span>
-                <select
-                  name="recurrenceRule"
-                  value={draft.recurrenceRule}
-                  onChange={handleDraftChange}
-                >
-                  <option value="">Does not repeat</option>
-                  <option value="FREQ=DAILY">Every day</option>
-                  <option value="FREQ=WEEKLY">Every week</option>
-                  <option value="FREQ=MONTHLY">Every month</option>
-                  <option value="FREQ=YEARLY">Every year</option>
-                </select>
-              </label>
-              <label className="skycal__field">
-                <span>Guests</span>
-                <input
-                  name="attendees"
-                  value={draft.attendees}
-                  onChange={handleDraftChange}
-                  placeholder="name@example.com, …"
-                />
-              </label>
-            </details>
-            <div className="skycal__form-actions">
-              {draft.id ? (
-                <button
-                  className="skycal__button skycal__button--danger"
-                  type="button"
-                  disabled={saving}
-                  onClick={deleteDraft}
-                >
-                  Delete
-                </button>
-              ) : null}
-              <button
-                className="skycal__button"
-                type="button"
-                onClick={closeDraft}
-              >
-                Cancel
-              </button>
-              <button
-                className="skycal__button skycal__button--primary"
-                type="submit"
-                disabled={saving}
-              >
-                {saving ? "Saving…" : "Save"}
-              </button>
-            </div>
-          </form>
-        </aside>
-      ) : null}
-      {editable && calendarComposerOpen && CalendarComposer ? (
-        <CalendarComposer
-          name={calendarDraft}
-          saving={saving}
-          onChange={setCalendarDraft}
-          onClose={closeCalendarComposer}
-          onSubmit={saveCalendar}
-        />
-      ) : null}
-      {editable && calendarComposerOpen && !CalendarComposer ? (
-        <aside
-          className="skycal__composer skycal__composer--calendar"
-          ref={calendarComposerRef}
-          role="dialog"
-          aria-modal="false"
-          aria-labelledby="skycal-calendar-composer-title"
-          onKeyDown={handleCalendarComposerKeyDown}
-        >
-          <form className="skycal__form" onSubmit={saveCalendar}>
-            <div className="skycal__composer-heading">
-              <h2 id="skycal-calendar-composer-title">New calendar</h2>
-              <button
-                className="skycal__icon-button"
-                type="button"
-                onClick={closeCalendarComposer}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-            <label className="skycal__field">
-              <span>Name</span>
-              <input
-                value={calendarDraft}
-                onChange={changeCalendarName}
-                maxLength={100}
-                required
-                autoFocus
-              />
-            </label>
-            <div className="skycal__form-actions">
-              <button
-                className="skycal__button"
-                type="button"
-                onClick={closeCalendarComposer}
-              >
-                Cancel
-              </button>
-              <button
-                className="skycal__button skycal__button--primary"
-                type="submit"
-                disabled={saving}
-              >
-                {saving ? "Creating…" : "Create"}
-              </button>
-            </div>
-          </form>
-        </aside>
-      ) : null}
-    </section>
-  );
-}
-
-interface CalendarHandlers {
-  editable: boolean;
-  onSlotClick: (event: MouseEvent<HTMLButtonElement>) => void;
-  onEventClick: (event: MouseEvent<HTMLButtonElement>) => void;
-  onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
-  onDragOver: (event: DragEvent<HTMLElement>) => void;
-  onDrop: (event: DragEvent<HTMLElement>) => void;
-}
-
-interface TimeGridHandlers extends CalendarHandlers {
-  onTimeRangeSelect: (
-    start: Date,
-    end: Date,
-    opener: HTMLButtonElement,
-  ) => void;
-}
-
-function Month({
-  days,
-  events,
-  locale,
-  timeZone,
-  ...handlers
-}: {
-  days: Date[];
-  events: DisplayEvent[];
-  locale?: string;
-  timeZone: string;
-} & CalendarHandlers) {
-  return (
-    <div className="skycal__month" role="group" aria-label="Month view">
-      {weekdays(locale).map((day) => (
-        <div className="skycal__weekday" key={day}>
-          {day}
-        </div>
-      ))}
-      {days.map((day) => {
-        const items = eventsForDay(events, day, timeZone);
-        return (
-          <div
-            className="skycal__day"
-            key={day.toISOString()}
-            data-start={day.toISOString()}
-            data-preserve-time="true"
-            onDragOver={handlers.onDragOver}
-            onDrop={handlers.onDrop}
-          >
-            <button
-              className="skycal__day-target"
-              type="button"
-              data-start={atTime(day, 9 * 60).toISOString()}
-              data-all-day="true"
-              onClick={handlers.onSlotClick}
-              aria-label={`Open ${formatDay(day, locale)} in day view`}
-            >
-              <time dateTime={dateKey(day)}>{day.getUTCDate()}</time>
-            </button>
-            <div className="skycal__day-events">
-              {items.slice(0, 4).map((item) => (
-                <EventButton
-                  editable={handlers.editable}
-                  item={item}
-                  key={item.instanceKey}
-                  onClick={handlers.onEventClick}
-                  onDragStart={handlers.onDragStart}
-                  timeZone={timeZone}
-                />
-              ))}
-              {items.length > 4 ? (
-                <span className="skycal__more">+{items.length - 4} more</span>
-              ) : null}
-            </div>
           </div>
-        );
-      })}
-    </div>
-  );
-}
+        )}
 
-function timeRangeSelectionFromDraft(
-  draft: SkyCalendarEventDraft | null,
-): TimeRangeSelection | null {
-  if (!draft || draft.id || draft.allDay) return null;
-  const start = Date.parse(`${draft.start}Z`);
-  const end = Date.parse(`${draft.end}Z`);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
-    return null;
-  }
-  const firstSlot = Math.floor(start / SLOT_MS) * SLOT_MS;
-  const lastSlot = Math.max(
-    firstSlot,
-    Math.ceil(end / SLOT_MS) * SLOT_MS - SLOT_MS,
-  );
-  return {
-    anchor: new Date(firstSlot).toISOString(),
-    current: new Date(lastSlot).toISOString(),
-    active: false,
-  };
-}
-
-function TimeGrid({
-  days,
-  events,
-  locale,
-  timeZone,
-  draft,
-  ...handlers
-}: {
-  days: Date[];
-  events: DisplayEvent[];
-  locale?: string;
-  timeZone: string;
-  draft: SkyCalendarEventDraft | null;
-} & TimeGridHandlers) {
-  const gridRef = useRef<HTMLDivElement | null>(null);
-  const pointerIdRef = useRef<number | null>(null);
-  const openerRef = useRef<HTMLButtonElement | null>(null);
-  const selectionRef = useRef<TimeRangeSelection | null>(null);
-  const slotHitAreasRef = useRef<SlotHitArea[]>([]);
-  const suppressNextClickRef = useRef(false);
-  const [selection, setSelection] = useState<TimeRangeSelection | null>(null);
-  const visibleSelection = selection?.active
-    ? selection
-    : timeRangeSelectionFromDraft(draft);
-
-  function slotAtPoint(
-    clientX: number,
-    clientY: number,
-  ): HTMLButtonElement | null {
-    let geometricMatch: SlotHitArea | undefined;
-    for (const area of slotHitAreasRef.current) {
-      if (
-        clientX < area.left ||
-        clientX > area.right ||
-        clientY < area.top ||
-        clientY > area.bottom
-      ) {
-        continue;
-      }
-      const size = (area.right - area.left) * (area.bottom - area.top);
-      const matchedSize = geometricMatch
-        ? (geometricMatch.right - geometricMatch.left) *
-          (geometricMatch.bottom - geometricMatch.top)
-        : Number.POSITIVE_INFINITY;
-      if (size < matchedSize) geometricMatch = area;
-    }
-    if (geometricMatch) return geometricMatch.element;
-    const candidate = document
-      .elementFromPoint?.(clientX, clientY)
-      ?.closest<HTMLButtonElement>(".skycal__slot-target");
-    return candidate && gridRef.current?.contains(candidate) ? candidate : null;
-  }
-
-  function captureSlotHitAreas(grid: HTMLDivElement) {
-    slotHitAreasRef.current = Array.from(
-      grid.querySelectorAll<HTMLButtonElement>(".skycal__slot-target"),
-      (element) => {
-        const bounds = element.getBoundingClientRect();
-        return {
-          element,
-          left: bounds.left,
-          right: bounds.right,
-          top: bounds.top,
-          bottom: bounds.bottom,
-        };
-      },
-    ).filter(({ left, right, top, bottom }) => right > left && bottom > top);
-  }
-
-  function handleSlotPointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (event.button !== 0 || event.pointerType === "touch") return;
-    const start = event.currentTarget.dataset.start;
-    const grid = gridRef.current;
-    if (!start || !grid) return;
-    event.preventDefault();
-    captureSlotHitAreas(grid);
-    const pointedSlot = slotAtPoint(event.clientX, event.clientY);
-    const opener = pointedSlot ?? event.currentTarget;
-    const resolvedStart = opener.dataset.start;
-    if (!resolvedStart) return;
-    pointerIdRef.current = event.pointerId;
-    openerRef.current = opener;
-    const nextSelection = {
-      anchor: resolvedStart,
-      current: resolvedStart,
-      active: true,
-    };
-    selectionRef.current = nextSelection;
-    setSelection(nextSelection);
-    grid.setPointerCapture?.(event.pointerId);
-  }
-
-  function handleGridPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    if (pointerIdRef.current !== event.pointerId) return;
-    const slot = slotAtPoint(event.clientX, event.clientY);
-    const current = slot?.dataset.start;
-    if (!current) return;
-    event.preventDefault();
-    const active = selectionRef.current;
-    if (!active) return;
-    const nextSelection = { ...active, current };
-    selectionRef.current = nextSelection;
-    setSelection(nextSelection);
-  }
-
-  function clearSelection() {
-    pointerIdRef.current = null;
-    openerRef.current = null;
-    selectionRef.current = null;
-    slotHitAreasRef.current = [];
-    setSelection(null);
-  }
-
-  function handleGridPointerCancel() {
-    clearSelection();
-  }
-
-  function handleGridPointerUp(event: ReactPointerEvent<HTMLDivElement>) {
-    const active = selectionRef.current;
-    if (
-      pointerIdRef.current !== event.pointerId ||
-      !active ||
-      !openerRef.current
-    )
-      return;
-    event.preventDefault();
-    const pointedStart = slotAtPoint(event.clientX, event.clientY)?.dataset
-      .start;
-    const current = pointedStart ?? active.current;
-    const completedSelection = { ...active, current, active: false };
-    const first = Math.min(Date.parse(active.anchor), Date.parse(current));
-    const last = Math.max(Date.parse(active.anchor), Date.parse(current));
-    const opener = openerRef.current;
-    suppressNextClickRef.current = true;
-    queueMicrotask(clearClickSuppression);
-    pointerIdRef.current = null;
-    openerRef.current = null;
-    slotHitAreasRef.current = [];
-    selectionRef.current = completedSelection;
-    setSelection(completedSelection);
-    handlers.onTimeRangeSelect(
-      new Date(first),
-      new Date(last + SLOT_MS),
-      opener,
-    );
-  }
-
-  function clearClickSuppression() {
-    suppressNextClickRef.current = false;
-  }
-
-  function handleSlotClick(event: MouseEvent<HTMLButtonElement>) {
-    if (suppressNextClickRef.current) {
-      suppressNextClickRef.current = false;
-      return;
-    }
-    handlers.onSlotClick(event);
-  }
-
-  function handleSlotKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    const grid = gridRef.current;
-    const start = event.currentTarget.dataset.start;
-    if (!grid || !start) return;
-    let offset: number;
-    if (event.key === "ArrowUp") offset = -SLOT_MS;
-    else if (event.key === "ArrowDown") offset = SLOT_MS;
-    else if (event.key === "ArrowLeft") offset = -DAY_MS;
-    else if (event.key === "ArrowRight") offset = DAY_MS;
-    else return;
-    const target = new Date(Date.parse(start) + offset).toISOString();
-    const nextSlot = grid.querySelector<HTMLButtonElement>(
-      `.skycal__slot-target[data-start="${target}"]`,
-    );
-    if (!nextSlot) return;
-    event.preventDefault();
-    nextSlot.focus();
-  }
-
-  return (
-    <div className="skycal__time-scroll">
-      <div
-        ref={gridRef}
-        className="skycal__time-grid"
-        role="group"
-        aria-label="Time grid"
-        data-days={days.length}
-        data-range-active={selection?.active ? "true" : undefined}
-        onPointerMove={handleGridPointerMove}
-        onPointerUp={handleGridPointerUp}
-        onPointerCancel={handleGridPointerCancel}
-      >
-        <div className="skycal__time-corner" />
-        {days.map((day) => (
-          <div className="skycal__time-day" key={day.toISOString()}>
-            {formatWeekday(day, locale)} <strong>{day.getUTCDate()}</strong>
-          </div>
-        ))}
-        {TIME_SLOTS.map((minutes) => (
-          <TimeSlot
-            minutes={minutes}
-            days={days}
-            events={events}
-            key={minutes}
-            handlers={handlers}
-            locale={locale}
-            selection={visibleSelection}
-            onSlotClick={handleSlotClick}
-            onSlotKeyDown={handleSlotKeyDown}
-            onSlotPointerDown={handleSlotPointerDown}
-            timeZone={timeZone}
+        {draft ? (
+          <EventComposer
+            calendars={calendars}
+            draft={draft}
+            editable={editable}
+            error={draftError}
+            saving={saving}
+            scheduleLabel={scheduleLabel(draft, locale)}
+            compact={compact}
+            onChange={changeDraft}
+            onClose={closeDraft}
+            onDelete={() => void deleteDraft()}
+            onSubmit={(event) => void saveDraft(event)}
           />
-        ))}
-      </div>
-    </div>
+        ) : null}
+        {calendarDraft ? (
+          <CalendarComposer
+            draft={calendarDraft}
+            error={calendarError}
+            saving={saving}
+            compact={compact}
+            onChange={changeCalendarDraft}
+            onClose={closeCalendarComposer}
+            onDelete={() => void deleteCalendar()}
+            onSubmit={(event) => void saveCalendar(event)}
+          />
+        ) : null}
+      </section>
+    </CalendarProvider>
   );
 }
 
-function TimeSlot({
-  minutes,
-  days,
-  events,
-  handlers,
-  locale,
-  selection,
-  onSlotClick,
-  onSlotKeyDown,
-  onSlotPointerDown,
-  timeZone,
-}: {
-  minutes: number;
-  days: Date[];
-  events: DisplayEvent[];
-  handlers: TimeGridHandlers;
-  locale?: string;
-  selection: TimeRangeSelection | null;
-  onSlotClick: (event: MouseEvent<HTMLButtonElement>) => void;
-  onSlotKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
-  onSlotPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  timeZone: string;
-}) {
-  const hour = Math.floor(minutes / 60);
-  const minute = minutes % 60;
-  const label = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  const hourEnd = minute === 60 - SLOT_MINUTES;
-  return (
-    <>
-      <div
-        className="skycal__hour"
-        data-hour-end={hourEnd ? "true" : undefined}
-        aria-hidden="true"
-      >
-        {minute === 0 ? label : null}
-      </div>
-      {days.map((day) => {
-        const start = atTime(day, minutes);
-        const items = events.filter((item) =>
-          sameTimeSlot(
-            wallDateFromInstant(new Date(item.start), timeZone),
-            start,
-          ),
-        );
-        const selected = selection
-          ? start.getTime() >=
-              Math.min(
-                Date.parse(selection.anchor),
-                Date.parse(selection.current),
-              ) &&
-            start.getTime() <=
-              Math.max(
-                Date.parse(selection.anchor),
-                Date.parse(selection.current),
-              )
-          : false;
-        const selectedStart = selection
-          ? Math.min(
-              Date.parse(selection.anchor),
-              Date.parse(selection.current),
-            )
-          : 0;
-        const selectedEnd = selection
-          ? Math.max(
-              Date.parse(selection.anchor),
-              Date.parse(selection.current),
-            )
-          : 0;
-        const rangePosition = selected
-          ? selectedStart === selectedEnd
-            ? "single"
-            : start.getTime() === selectedStart
-              ? "start"
-              : start.getTime() === selectedEnd
-                ? "end"
-                : "middle"
-          : null;
-        return (
-          <div
-            className="skycal__slot"
-            key={start.toISOString()}
-            data-start={start.toISOString()}
-            data-hour-end={hourEnd ? "true" : undefined}
-            data-range-selected={selected ? "true" : undefined}
-            onDragOver={handlers.onDragOver}
-            onDrop={handlers.onDrop}
-          >
-            <button
-              className="skycal__slot-target"
-              type="button"
-              data-start={start.toISOString()}
-              onClick={onSlotClick}
-              onKeyDown={onSlotKeyDown}
-              onPointerDown={onSlotPointerDown}
-              aria-label={`New event, ${formatDay(day, locale)}, ${label}`}
-              hidden={!handlers.editable}
-            />
-            {rangePosition ? (
-              <span
-                className="skycal__range-preview"
-                data-position={rangePosition}
-                aria-hidden="true"
-              />
-            ) : null}
-            {items.map((item) => (
-              <EventButton
-                editable={handlers.editable}
-                item={item}
-                key={item.instanceKey}
-                onClick={handlers.onEventClick}
-                onDragStart={handlers.onDragStart}
-                timeZone={timeZone}
-              />
-            ))}
-          </div>
-        );
-      })}
-    </>
-  );
+// ── helpers ─────────────────────────────────────────────────────────────────
+
+interface Period {
+  from: Date;
+  to: Date;
+  viewDate: Date;
 }
 
-function EventButton({
-  item,
-  editable,
-  onClick,
-  onDragStart,
-  timeZone,
-}: {
-  item: DisplayEvent;
-  editable: boolean;
-  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
-  onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
-  timeZone: string;
-}) {
-  return (
-    <button
-      className="skycal__event"
-      type="button"
-      draggable={editable && !item.recurrenceRule}
-      disabled={!editable}
-      data-event-id={item.id}
-      data-instance-key={item.instanceKey}
-      data-status={item.status}
-      onClick={onClick}
-      onDragStart={onDragStart}
-    >
-      <span>{item.title}</span>
-      <time dateTime={item.start}>
-        {formatTime(new Date(item.start), timeZone)}
-      </time>
-    </button>
-  );
-}
-
-function Agenda({
-  events,
-  editable,
-  locale,
-  timeZone,
-  onEventClick,
-}: {
-  events: DisplayEvent[];
-  editable: boolean;
-  locale?: string;
-  timeZone: string;
-  onEventClick: (event: MouseEvent<HTMLButtonElement>) => void;
-}) {
-  const sorted = [...events].sort((a, b) => a.start.localeCompare(b.start));
-  if (!sorted.length)
-    return <p className="skycal__state">No events in this period.</p>;
-  return (
-    <ol className="skycal__agenda">
-      {sorted.map((item) => (
-        <li key={item.instanceKey}>
-          <time dateTime={item.start}>
-            {new Intl.DateTimeFormat(locale, {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-              hour: item.allDay ? undefined : "2-digit",
-              minute: item.allDay ? undefined : "2-digit",
-              timeZone,
-            }).format(new Date(item.start))}
-          </time>
-          <button
-            type="button"
-            data-event-id={item.id}
-            data-instance-key={item.instanceKey}
-            onClick={onEventClick}
-            disabled={!editable}
-          >
-            <strong>{item.title}</strong>
-            {item.location ? <span>{item.location}</span> : null}
-          </button>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function draftScheduleLabel(
-  draft: SkyCalendarEventDraft,
-  locale?: string,
-): string {
-  const start = new Date(`${draft.start}Z`);
-  const end = new Date(`${draft.end}Z`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return "Choose a date and time";
+function visiblePeriod(
+  cursor: Date,
+  view: SkyCalendarView,
+  compact: boolean,
+  zone: string,
+  weekStartsOn: number,
+): Period {
+  const anchor = dates.startOfDay(dates.toZoned(cursor, zone));
+  let from: ZonedDateTime;
+  let to: ZonedDateTime;
+  switch (view) {
+    case "month":
+      from = dates.startOfWeek(dates.startOfMonth(anchor), weekStartsOn);
+      to = dates.addDays(from, 42);
+      break;
+    case "week":
+      from = compact ? anchor : dates.startOfWeek(anchor, weekStartsOn);
+      to = dates.addDays(from, compact ? COMPACT_WEEK_DAYS : 7);
+      break;
+    case "day":
+      from = anchor;
+      to = dates.addDays(anchor, 1);
+      break;
+    case "agenda":
+      from = anchor;
+      to = dates.addDays(anchor, AGENDA_DAYS);
+      break;
   }
-  const dateFormatter = new Intl.DateTimeFormat(locale, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-  const startDate = dateFormatter.format(start);
-  if (draft.allDay) {
-    const inclusiveEnd = new Date(end.getTime() - DAY_MS);
-    const endDate = dateFormatter.format(inclusiveEnd);
-    return startDate === endDate
-      ? `${startDate} · All day`
-      : `${startDate} – ${endDate} · All day`;
-  }
-  const timeFormatter = new Intl.DateTimeFormat(locale, {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "UTC",
-  });
-  return `${startDate} · ${timeFormatter.format(start)}–${timeFormatter.format(end)}`;
-}
-
-function draftInput(draft: SkyCalendarEventDraft): ProductEventInput {
-  const attendees = draft.attendees
-    .split(",")
-    .map((email) => email.trim())
-    .filter(Boolean)
-    .map((email) => ({ email, response: "needs-action" as const }));
   return {
-    title: draft.title.trim(),
-    ...(draft.description ? { description: draft.description } : {}),
-    ...(draft.location ? { location: draft.location } : {}),
-    start: instantFromLocalInput(draft.start, draft.timeZone).toISOString(),
-    end: instantFromLocalInput(draft.end, draft.timeZone).toISOString(),
-    allDay: draft.allDay,
-    timeZone: draft.timeZone,
-    ...(draft.recurrenceRule ? { recurrenceRule: draft.recurrenceRule } : {}),
-    recurrenceExceptions: [],
-    status: "confirmed",
-    visibility: "default",
-    attendees,
+    from: new Date(from.epochMs),
+    to: new Date(to.epochMs),
+    viewDate: new Date(anchor.epochMs),
   };
 }
 
-function eventInput(
-  item: ProductEvent,
-  start: Date,
-  end: Date,
-  recurrenceExceptions = item.recurrenceExceptions,
-): ProductEventInput {
-  return {
-    title: item.title,
-    ...(item.description ? { description: item.description } : {}),
-    ...(item.location ? { location: item.location } : {}),
-    start: start.toISOString(),
-    end: end.toISOString(),
-    allDay: item.allDay,
-    timeZone: item.timeZone,
-    ...(item.recurrenceRule ? { recurrenceRule: item.recurrenceRule } : {}),
-    recurrenceExceptions,
-    status: item.status,
-    visibility: item.visibility,
-    attendees: item.attendees,
-  };
-}
-
-function visibleWallPeriod(cursor: Date, view: View) {
-  if (view === "month") {
-    const first = new Date(
-      Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 1),
-    );
-    const from = startOfWeek(first);
-    return { from, to: new Date(from.getTime() + 42 * DAY_MS) };
-  }
-  if (view === "week") {
-    const from = startOfWeek(cursor);
-    return { from, to: new Date(from.getTime() + 7 * DAY_MS) };
-  }
-  const from = startOfDay(cursor);
-  return {
-    from,
-    to: new Date(from.getTime() + (view === "agenda" ? 31 : 1) * DAY_MS),
-  };
-}
-
-function visiblePeriod(cursor: Date, view: View, timeZone: string) {
-  const wall = visibleWallPeriod(cursor, view);
-  return {
-    from: instantFromWallDate(wall.from, timeZone),
-    to: instantFromWallDate(wall.to, timeZone),
-  };
-}
-
-function viewDays(cursor: Date, view: View): Date[] {
-  const period = visibleWallPeriod(cursor, view);
-  const count = view === "month" ? 42 : view === "week" ? 7 : 1;
-  return Array.from(
-    { length: count },
-    (_, index) => new Date(period.from.getTime() + index * DAY_MS),
-  );
-}
-
-function moveCursor(cursor: Date, view: View, direction: number): Date {
-  const next = new Date(cursor);
-  if (view === "month") next.setUTCMonth(next.getUTCMonth() + direction);
-  else
-    next.setUTCDate(
-      next.getUTCDate() +
-        direction * (view === "week" ? 7 : view === "agenda" ? 31 : 1),
-    );
-  return next;
-}
-
-function startOfDay(date: Date): Date {
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-  );
-}
-function startOfWeek(date: Date): Date {
-  const result = startOfDay(date);
-  const offset = (result.getUTCDay() + 6) % 7;
-  result.setUTCDate(result.getUTCDate() - offset);
-  return result;
-}
-function atTime(day: Date, minutes: number): Date {
-  return new Date(
-    Date.UTC(
-      day.getUTCFullYear(),
-      day.getUTCMonth(),
-      day.getUTCDate(),
-      Math.floor(minutes / 60),
-      minutes % 60,
-    ),
-  );
-}
-function sameTimeSlot(a: Date, b: Date): boolean {
-  return (
-    a.getUTCFullYear() === b.getUTCFullYear() &&
-    a.getUTCMonth() === b.getUTCMonth() &&
-    a.getUTCDate() === b.getUTCDate() &&
-    a.getUTCHours() === b.getUTCHours() &&
-    Math.floor(a.getUTCMinutes() / SLOT_MINUTES) ===
-      Math.floor(b.getUTCMinutes() / SLOT_MINUTES)
-  );
-}
-function eventsForDay(
-  events: DisplayEvent[],
-  day: Date,
-  timeZone: string,
-): DisplayEvent[] {
-  const key = dateKey(day);
-  return events.filter(
-    (item) =>
-      dateKey(wallDateFromInstant(new Date(item.start), timeZone)) === key,
-  );
-}
-
-function expandRecurrences(
-  events: ProductEvent[],
-  from: Date,
-  to: Date,
-): DisplayEvent[] {
-  return events.flatMap((event) => {
-    if (!event.recurrenceRule) return [{ ...event, instanceKey: event.id }];
-    try {
-      const wallStart = wallDateFromInstant(
-        new Date(event.start),
-        event.timeZone,
+function moveCursor(
+  cursor: Date,
+  view: SkyCalendarView,
+  compact: boolean,
+  zone: string,
+  direction: -1 | 1,
+): Date {
+  const anchor = dates.startOfDay(dates.toZoned(cursor, zone));
+  switch (view) {
+    case "month":
+      return new Date(dates.addMonths(anchor, direction).epochMs);
+    case "week":
+      return new Date(
+        dates.addDays(anchor, direction * (compact ? COMPACT_WEEK_DAYS : 7))
+          .epochMs,
       );
-      const wallEnd = wallDateFromInstant(new Date(event.end), event.timeZone);
-      const wallFrom = wallDateFromInstant(from, event.timeZone);
-      const wallTo = wallDateFromInstant(to, event.timeZone);
-      const rule = rrulestr(event.recurrenceRule.replace(/^RRULE:/, ""), {
-        dtstart: wallStart,
-      });
-      const wallDuration = wallEnd.getTime() - wallStart.getTime();
-      const exceptions = new Set(event.recurrenceExceptions);
-      return rule
-        .between(wallFrom, wallTo, true)
-        .slice(0, 1_000)
-        .map((wallOccurrence) => {
-          const start = instantFromWallDate(wallOccurrence, event.timeZone);
-          const end = instantFromWallDate(
-            new Date(wallOccurrence.getTime() + wallDuration),
-            event.timeZone,
-          );
-          return {
-            ...event,
-            start: start.toISOString(),
-            end: end.toISOString(),
-            instanceKey: `${event.id}:${start.toISOString()}`,
-          };
-        })
-        .filter((occurrence) => !exceptions.has(occurrence.start));
-    } catch {
-      return [{ ...event, instanceKey: event.id }];
-    }
-  });
+    case "day":
+      return new Date(dates.addDays(anchor, direction).epochMs);
+    case "agenda":
+      return new Date(dates.addDays(anchor, direction * AGENDA_DAYS).epochMs);
+  }
 }
-function weekdays(locale?: string): string[] {
-  const monday = new Date(Date.UTC(2024, 0, 1));
-  return Array.from({ length: 7 }, (_, index) =>
-    formatWeekday(new Date(monday.getTime() + index * DAY_MS), locale),
+
+function periodTitle(
+  period: Period,
+  view: SkyCalendarView,
+  locale: string | undefined,
+  timeZone: string,
+): string {
+  const last = new Date(period.to.getTime() - DAY_MS);
+  if (view === "month") {
+    return new Intl.DateTimeFormat(locale, {
+      month: "long",
+      year: "numeric",
+      timeZone,
+    }).format(new Date(period.from.getTime() + 10 * DAY_MS));
+  }
+  if (view === "day") {
+    return new Intl.DateTimeFormat(locale, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone,
+    }).format(period.from);
+  }
+  const range = new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone,
+  });
+  return range.formatRange(period.from, last);
+}
+
+function toInstant(value: Date | ZonedDateTime): Date {
+  return value instanceof Date ? value : new Date(value.epochMs);
+}
+
+function nextColor(calendars: readonly ProductCalendar[]): string {
+  const used = new Set(calendars.map((calendar) => calendar.color));
+  return (
+    [
+      "#2563eb",
+      "#16a34a",
+      "#db2777",
+      "#ea580c",
+      "#7c3aed",
+      "#0d9488",
+      "#ca8a04",
+    ].find((color) => !used.has(color)) ?? DEFAULT_CALENDAR_COLOR
   );
 }
-function formatWeekday(date: Date, locale?: string): string {
-  return new Intl.DateTimeFormat(locale, {
-    weekday: "short",
-    timeZone: "UTC",
-  }).format(date);
-}
-function formatDay(date: Date, locale?: string): string {
-  return new Intl.DateTimeFormat(locale, {
-    dateStyle: "long",
-    timeZone: "UTC",
-  }).format(date);
-}
-function formatTime(date: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-    timeZone,
-  }).format(date);
-}
-function periodTitle(
-  date: Date,
-  view: View,
-  locale: string | undefined,
-): string {
-  return new Intl.DateTimeFormat(
-    locale,
-    view === "day"
-      ? { dateStyle: "long", timeZone: "UTC" }
-      : { month: "long", year: "numeric", timeZone: "UTC" },
-  ).format(date);
-}
-function capitalize(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
 
-function validAttendees(value: string): boolean {
-  const emails = value
-    .split(",")
-    .map((email) => email.trim())
-    .filter(Boolean);
-  return emails.every((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
-}
-
-function moveSeriesInput(
-  master: ProductEvent,
-  edited: ProductEventInput,
-  occurrenceStart: string,
-): ProductEventInput {
-  const offset = Date.parse(edited.start) - Date.parse(occurrenceStart);
-  const start = new Date(Date.parse(master.start) + offset);
-  const duration = Date.parse(edited.end) - Date.parse(edited.start);
-  return {
-    ...edited,
-    start: start.toISOString(),
-    end: new Date(start.getTime() + duration).toISOString(),
-    recurrenceExceptions: master.recurrenceExceptions,
-  };
+function hostZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
 }
 
 function downloadFile(contents: string, type: string, name: string): void {
   const url = URL.createObjectURL(new Blob([contents], { type }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
   URL.revokeObjectURL(url);
+}
+
+function Chevron({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      width="20"
+      height="20"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d={
+          direction === "left"
+            ? "M12.5 4.5 7 10l5.5 5.5"
+            : "M7.5 4.5 13 10l-5.5 5.5"
+        }
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function Plus() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      width="18"
+      height="18"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M10 4v12M4 10h12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function Pencil() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      width="16"
+      height="16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="m4 13.5 8.5-8.5 2.5 2.5-8.5 8.5H4z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }

@@ -31,12 +31,17 @@ la récurrence RFC 5545, les exceptions, l'export ICS/CSV, le glisser-redimensio
 clavier et des primitives de détection de conflits. Les événements restent immuables dans la
 bibliothèque : l'hôte reçoit une proposition de changement et décide de la persister.
 
-`SkyCalendarWorkspace` est la surface produit complète et réutilisable. L'hôte injecte un
-`SkyCalendarTransport`; la vue ne connaît donc ni cookie de session, ni URL de plateforme, ni
-secret. Elle propose les vues mois/semaine/jour/agenda, la création rapide depuis une case,
-l'édition, la suppression, le déplacement par glisser-déposer, les invités et les récurrences.
-Son CSS externe est publié par `@skynet-initiative/sky-calendar/styles.css` et s'aligne sur les
-tokens CSS de l'hôte avec des valeurs de repli.
+`SkyCalendarWorkspace` est la surface produit complète et réutilisable, construite sur les vues
+du noyau (mois, semaine, jour, agenda). L'hôte injecte un `SkyCalendarTransport`; la vue ne
+connaît donc ni cookie de session, ni URL de plateforme, ni secret. Elle est pensée pour le
+téléphone d'abord : une boîte étroite ouvre l'agenda, la semaine devient trois jours, les
+dialogues intégrés deviennent des feuilles basses, et le glisser-déposer suit le pointeur,
+tactile compris. Elle gère les calendriers (créer, renommer, colorer, masquer, supprimer), les
+événements avec invités et récurrences, et une visioconférence attachée à l'événement
+(`conference` : fournisseur, identifiant, lien). L'hôte fournit ses propres composeurs par
+`eventComposer` et `calendarComposer` ; les intégrés servent la console de référence. Son CSS
+externe est publié par `@skynet-initiative/sky-calendar/styles.css` et s'aligne sur les tokens CSS
+de l'hôte avec des valeurs de repli.
 
 Ecosystem conserve uniquement son adaptateur BFF. Skynet v2 vérifie le projet et les droits,
 dérive un workspace opaque, puis émet un jeton court limité à `read` ou `manage`. Lors de la

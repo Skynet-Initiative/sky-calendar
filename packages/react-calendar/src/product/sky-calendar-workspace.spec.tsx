@@ -1,8 +1,13 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   SkyCalendarWorkspace,
-  type SkyCalendarCalendarComposerRenderProps,
   type SkyCalendarEventComposerRenderProps,
 } from "./sky-calendar-workspace";
 import type {
@@ -14,12 +19,42 @@ import type {
 
 const calendar: ProductCalendar = {
   id: "cal-1",
-  name: "Calendar",
+  name: "Team",
   color: "#2563eb",
   timeZone: "UTC",
 };
 
-function createProductEvent(
+function transportWith(
+  overrides: Partial<SkyCalendarTransport> = {},
+  events: ProductEvent[] = [],
+): SkyCalendarTransport {
+  return {
+    listCalendars: vi.fn().mockResolvedValue([calendar]),
+    createCalendar: vi
+      .fn()
+      .mockImplementation((input) =>
+        Promise.resolve({ ...input, id: "cal-created" }),
+      ),
+    updateCalendar: vi
+      .fn()
+      .mockImplementation((id, input) =>
+        Promise.resolve({ ...calendar, ...input, id }),
+      ),
+    deleteCalendar: vi.fn().mockResolvedValue(undefined),
+    listEvents: vi.fn().mockResolvedValue(events),
+    exportEvents: vi.fn().mockResolvedValue(events),
+    createEvent: vi.fn().mockImplementation(created),
+    replaceEvent: vi
+      .fn()
+      .mockImplementation((id: string, input: ProductEventInput) =>
+        created(calendar.id, input).then((event) => ({ ...event, id })),
+      ),
+    deleteEvent: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+function created(
   calendarId: string,
   input: ProductEventInput,
 ): Promise<ProductEvent> {
@@ -31,20 +66,27 @@ function createProductEvent(
     location: input.location ?? null,
     recurrenceRule: input.recurrenceRule ?? null,
     recurrenceExceptions: input.recurrenceExceptions ?? [],
+    conference: input.conference ?? null,
   });
 }
 
-function currentEvent(): ProductEvent {
+function inAnHour(): Date {
   const start = new Date();
-  start.setSeconds(0, 0);
+  start.setUTCMinutes(0, 0, 0);
+  start.setUTCHours(start.getUTCHours() + 1);
+  return start;
+}
+
+function timedEvent(overrides: Partial<ProductEvent> = {}): ProductEvent {
+  const start = inAnHour();
   return {
-    id: "event-read-only",
+    id: "event-1",
     calendarId: calendar.id,
-    title: "Read-only event",
+    title: "Planning review",
     description: null,
     location: null,
     start: start.toISOString(),
-    end: new Date(start.getTime() + 60 * 60_000).toISOString(),
+    end: new Date(start.getTime() + 3_600_000).toISOString(),
     allDay: false,
     timeZone: "UTC",
     recurrenceRule: null,
@@ -52,548 +94,333 @@ function currentEvent(): ProductEvent {
     status: "confirmed",
     visibility: "default",
     attendees: [],
+    conference: null,
+    ...overrides,
   };
 }
 
-function firePointerEvent(
-  target: Element,
-  type: string,
-  init: {
-    button?: number;
-    clientX?: number;
-    clientY?: number;
-    pointerId: number;
-    pointerType: string;
-  },
+function renderWorkspace(
+  transport: SkyCalendarTransport,
+  props: Partial<Parameters<typeof SkyCalendarWorkspace>[0]> = {},
 ) {
-  const event = new Event(type, { bubbles: true, cancelable: true });
-  Object.defineProperties(event, {
-    button: { value: init.button ?? 0 },
-    clientX: { value: init.clientX ?? 0 },
-    clientY: { value: init.clientY ?? 0 },
-    pointerId: { value: init.pointerId },
-    pointerType: { value: init.pointerType },
+  return render(
+    <SkyCalendarWorkspace
+      transport={transport}
+      timeZone="UTC"
+      locale="en"
+      initialView="agenda"
+      {...props}
+    />,
+  );
+}
+
+/** The first row carrying the title: a series or a multi-day event lists several. */
+async function openEvent(title: string) {
+  const [row] = await screen.findAllByRole("button", {
+    name: new RegExp(title),
   });
-  fireEvent(target, event);
+  if (!row) throw new Error(`no row for ${title}`);
+  fireEvent.click(row);
+  return screen.findByRole("dialog");
 }
 
-function TestEventComposer(props: SkyCalendarEventComposerRenderProps) {
-  return (
-    <section aria-label="Host event panel">
-      <span>{props.scheduleLabel}</span>
-      <button type="button" onClick={props.onClose}>
-        Close host event panel
-      </button>
-    </section>
+function pretendNarrow(width: number) {
+  const observers: ResizeObserverCallback[] = [];
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: ResizeObserverCallback) {
+        observers.push(callback);
+      }
+      observe() {
+        for (const callback of observers) callback([], this as never);
+      }
+      disconnect() {
+        // nothing to release
+      }
+      unobserve() {
+        // nothing to release
+      }
+    },
   );
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+    width,
+    height: 800,
+    top: 0,
+    left: 0,
+    right: width,
+    bottom: 800,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  });
 }
 
-function TestCalendarComposer(props: SkyCalendarCalendarComposerRenderProps) {
-  return (
-    <section aria-label="Host calendar panel">
-      <button type="button" onClick={props.onClose}>
-        Close host calendar panel
-      </button>
-    </section>
-  );
-}
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("SkyCalendarWorkspace", () => {
-  it("can keep secondary calendar actions out of a host interface", async () => {
-    const transport: SkyCalendarTransport = {
-      listCalendars: vi.fn().mockResolvedValue([calendar]),
-      createCalendar: vi.fn(),
-      listEvents: vi.fn().mockResolvedValue([]),
-      exportEvents: vi.fn(),
-      createEvent: vi.fn(),
-      replaceEvent: vi.fn(),
-      deleteEvent: vi.fn(),
-    };
+  it("loads the visible period and lists its events", async () => {
+    const transport = transportWith({}, [timedEvent()]);
+    renderWorkspace(transport);
 
-    render(
-      <SkyCalendarWorkspace
-        transport={transport}
-        timeZone="UTC"
-        locale="en"
-        showSecondaryActions={false}
-      />,
-    );
-
-    await screen.findByRole("button", { name: "New event" });
-    expect(screen.queryByRole("button", { name: "New calendar" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Export ICS" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
-  });
-
-  it("keeps reads available without exposing mutations in read-only mode", async () => {
-    const createCalendar = vi.fn();
-    const createEvent = vi.fn();
-    const replaceEvent = vi.fn();
-    const deleteEvent = vi.fn();
-    const transport: SkyCalendarTransport = {
-      listCalendars: vi.fn().mockResolvedValue([calendar]),
-      createCalendar,
-      listEvents: vi.fn().mockResolvedValue([currentEvent()]),
-      exportEvents: vi.fn().mockResolvedValue([]),
-      createEvent,
-      replaceEvent,
-      deleteEvent,
-    };
-
-    render(
-      <SkyCalendarWorkspace
-        transport={transport}
-        timeZone="UTC"
-        locale="en"
-        editable={false}
-      />,
-    );
-
-    expect(await screen.findByText("Read-only event")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /read.?only/i })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "New event" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "New calendar" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Export ICS" })).toBeTruthy();
+    await screen.findByRole("button", { name: /Planning review/ });
+    const [from, to] = (transport.listEvents as ReturnType<typeof vi.fn>).mock
+      .calls[0] as [string, string];
+    expect(Date.parse(from)).toBeLessThan(Date.parse(to));
     expect(
       screen
-        .getByRole("button", { name: /Read-only event/i })
-        .hasAttribute("disabled"),
-    ).toBe(true);
-
-    fireEvent.click(screen.getByRole("button", { name: "Week" }));
-    expect(screen.queryByRole("button", { name: /New event,/i })).toBeNull();
-    expect(createCalendar).not.toHaveBeenCalled();
-    expect(createEvent).not.toHaveBeenCalled();
-    expect(replaceEvent).not.toHaveBeenCalled();
-    expect(deleteEvent).not.toHaveBeenCalled();
-  });
-
-  it("delegates composer presentation to the host application", async () => {
-    const transport: SkyCalendarTransport = {
-      listCalendars: vi.fn().mockResolvedValue([calendar]),
-      createCalendar: vi.fn(),
-      listEvents: vi.fn().mockResolvedValue([]),
-      exportEvents: vi.fn(),
-      createEvent: vi.fn(),
-      replaceEvent: vi.fn(),
-      deleteEvent: vi.fn(),
-    };
-
-    render(
-      <SkyCalendarWorkspace
-        transport={transport}
-        timeZone="UTC"
-        locale="en"
-        eventComposer={TestEventComposer}
-        calendarComposer={TestCalendarComposer}
-      />,
-    );
-    await screen.findAllByRole("button", {
-      name: /open .* in day view/i,
-    });
-    fireEvent.click(screen.getByRole("button", { name: "New event" }));
-    expect(
-      screen.getByRole("region", { name: "Host event panel" }),
-    ).toBeTruthy();
-    expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Close host event panel" }),
-    );
-    expect(
-      screen.queryByRole("region", { name: "Host event panel" }),
-    ).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "New calendar" }));
-    expect(
-      screen.getByRole("region", { name: "Host calendar panel" }),
-    ).toBeTruthy();
-  });
-
-  it("offers a real retry after an initial loading failure", async () => {
-    const listCalendars = vi
-      .fn()
-      .mockRejectedValueOnce(new TypeError("network"))
-      .mockResolvedValueOnce([calendar]);
-    const listEvents = vi
-      .fn()
-      .mockRejectedValueOnce(new TypeError("network"))
-      .mockResolvedValueOnce([]);
-    const transport: SkyCalendarTransport = {
-      listCalendars,
-      createCalendar: vi.fn(),
-      listEvents,
-      exportEvents: vi.fn(),
-      createEvent: vi.fn(),
-      replaceEvent: vi.fn(),
-      deleteEvent: vi.fn(),
-    };
-
-    render(
-      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
-    );
-
-    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
-
-    await waitFor(() => expect(listCalendars).toHaveBeenCalledTimes(2));
-    expect(listEvents).toHaveBeenCalledTimes(2);
-    expect(
-      await screen.findAllByRole("button", { name: /open .* in day view/i }),
-    ).not.toHaveLength(0);
-  });
-
-  it("opens a selected month date in the day view", async () => {
-    const transport: SkyCalendarTransport = {
-      listCalendars: vi.fn().mockResolvedValue([calendar]),
-      createCalendar: vi.fn().mockResolvedValue(calendar),
-      listEvents: vi.fn().mockResolvedValue([]),
-      exportEvents: vi.fn().mockResolvedValue([]),
-      createEvent: vi.fn(),
-      replaceEvent: vi.fn(),
-      deleteEvent: vi.fn(),
-    };
-
-    render(
-      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
-    );
-    const [day] = await screen.findAllByRole("button", {
-      name: /open .* in day view/i,
-    });
-    expect(day).toBeDefined();
-    if (!day) throw new Error("month view did not expose a day target");
-    const selectedDate = day.dataset.start?.slice(0, 10);
-    if (!selectedDate) throw new Error("day target did not expose its date");
-    const selectedLabel = day
-      .getAttribute("aria-label")
-      ?.replace(/^Open | in day view$/g, "");
-    if (!selectedLabel) throw new Error("day target did not expose its label");
-    fireEvent.click(day);
-
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
-      selectedLabel,
-    );
-    expect(
-      screen
-        .getByRole("group", { name: "Time grid" })
-        .getAttribute("data-days"),
-    ).toBe("1");
-    const [selectedSlot] = screen.getAllByRole("button", {
-      name: /New event,.*, 09:00/,
-    });
-    expect(selectedSlot?.dataset.start?.slice(0, 10)).toBe(selectedDate);
-    expect(screen.getByRole("button", { name: "Today" })).toBeTruthy();
-    expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
-  });
-
-  it("does not offer a redundant Today action for the current period", async () => {
-    const transport: SkyCalendarTransport = {
-      listCalendars: vi.fn().mockResolvedValue([calendar]),
-      createCalendar: vi.fn(),
-      listEvents: vi.fn().mockResolvedValue([]),
-      exportEvents: vi.fn(),
-      createEvent: vi.fn(),
-      replaceEvent: vi.fn(),
-      deleteEvent: vi.fn(),
-    };
-
-    render(
-      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
-    );
-
-    await screen.findAllByRole("button", { name: /open .* in day view/i });
+        .getByRole("button", { name: "Agenda" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
     expect(screen.queryByRole("button", { name: "Today" })).toBeNull();
+  });
+
+  it("starts in Agenda and shows three-day weeks when the box is narrow", async () => {
+    pretendNarrow(375);
+    renderWorkspace(transportWith(), { initialView: "month" });
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("button", { name: "Agenda" })
+          .getAttribute("aria-pressed"),
+      ).toBe("true"),
+    );
+    expect(screen.getByRole("button", { name: "3 days" })).toBeTruthy();
+  });
+
+  it("keeps a wide box on the requested view and offers Today after moving", async () => {
+    renderWorkspace(transportWith(), { initialView: "month" });
+    await screen.findByRole("group", { name: "Calendar view" });
+    expect(
+      screen
+        .getByRole("button", { name: "Month" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "Next period" }));
     expect(screen.getByRole("button", { name: "Today" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Today" }));
-    expect(screen.queryByRole("button", { name: "Today" })).toBeNull();
   });
 
-  it("creates a timed draft from a dragged range in the week grid", async () => {
-    const createEvent = vi.fn(createProductEvent);
-    const transport: SkyCalendarTransport = {
-      listCalendars: vi.fn().mockResolvedValue([calendar]),
-      createCalendar: vi.fn(),
-      listEvents: vi.fn().mockResolvedValue([]),
-      exportEvents: vi.fn(),
-      createEvent,
-      replaceEvent: vi.fn(),
-      deleteEvent: vi.fn(),
-    };
+  it("lets a reader open an event without offering any change", async () => {
+    const transport = transportWith({}, [timedEvent({ location: "Room 4" })]);
+    renderWorkspace(transport, { editable: false });
 
-    render(
-      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
-    );
-    await screen.findAllByRole("button", { name: /open .* in day view/i });
-    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+    const dialog = await openEvent("Planning review");
+    expect(within(dialog).getByDisplayValue("Room 4")).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Save" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Delete" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /New event/ })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
 
-    const start = screen.getAllByRole("button", {
-      name: /New event,.*, 09:15/,
-    })[0];
-    const end = screen.getAllByRole("button", {
-      name: /New event,.*, 09:30/,
-    })[0];
-    const midnight = screen.getAllByRole("button", {
-      name: /New event,.*, 00:00/,
-    })[0];
-    const grid = screen.getByRole("group", { name: "Time grid" });
-    if (!start || !end || !midnight) {
-      throw new Error("week grid did not expose time slots");
-    }
-    const selectedDate = start.dataset.start?.slice(0, 10);
-    if (!selectedDate) throw new Error("time slot did not expose its date");
-    vi.spyOn(start, "getBoundingClientRect").mockReturnValue({
-      bottom: 100,
-      height: 20,
-      left: 0,
-      right: 20,
-      top: 80,
-      width: 20,
-      x: 0,
-      y: 80,
-      toJSON: vi.fn(),
+  it("saves a title without touching guest answers, status, visibility or the all-day end", async () => {
+    const start = new Date();
+    start.setUTCHours(0, 0, 0, 0);
+    const end = new Date(start.getTime() + 2 * 86_400_000);
+    const event = timedEvent({
+      title: "Offsite",
+      allDay: true,
+      start: start.toISOString(),
+      end: end.toISOString(),
+      status: "tentative",
+      visibility: "private",
+      attendees: [
+        { email: "ana@example.com", displayName: "Ana", response: "accepted" },
+      ],
     });
-    vi.spyOn(end, "getBoundingClientRect").mockReturnValue({
-      bottom: 140,
-      height: 20,
-      left: 0,
-      right: 20,
-      top: 120,
-      width: 20,
-      x: 0,
-      y: 120,
-      toJSON: vi.fn(),
-    });
-    firePointerEvent(midnight, "pointerdown", {
-      button: 0,
-      clientX: 10,
-      clientY: 90,
-      pointerId: 1,
-      pointerType: "mouse",
-    });
-    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(1);
-    Object.defineProperty(document, "elementFromPoint", {
-      configurable: true,
-      value: vi.fn().mockReturnValue(end),
-    });
-    firePointerEvent(grid, "pointermove", {
-      clientX: 10,
-      clientY: 130,
-      pointerId: 1,
-      pointerType: "mouse",
-    });
-    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(2);
-    firePointerEvent(grid, "pointerup", {
-      clientX: 10,
-      clientY: 130,
-      pointerId: 1,
-      pointerType: "mouse",
-    });
-    Reflect.deleteProperty(document, "elementFromPoint");
+    const transport = transportWith({}, [event]);
+    renderWorkspace(transport);
 
-    expect(screen.getByRole("dialog", { name: "New event" })).toBeTruthy();
-    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(2);
-    expect((screen.getByLabelText("Starts") as HTMLInputElement).value).toBe(
-      `${selectedDate}T09:15`,
+    const dialog = await openEvent("Offsite");
+    const lastDay = within(dialog).getByLabelText(
+      "Last day",
+    ) as HTMLInputElement;
+    expect(lastDay.value).toBe(
+      new Date(end.getTime() - 86_400_000).toISOString().slice(0, 10),
     );
-    expect((screen.getByLabelText("Ends") as HTMLInputElement).value).toBe(
-      `${selectedDate}T09:45`,
-    );
-    fireEvent.change(screen.getByLabelText("Ends"), {
-      target: { value: `${selectedDate}T10:00` },
+    fireEvent.change(within(dialog).getByLabelText("Title"), {
+      target: { value: "Offsite, day two" },
     });
-    expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(3);
-    fireEvent.change(screen.getByLabelText("Title"), {
-      target: { value: "Selected range" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(createEvent).toHaveBeenCalledOnce());
-    expect(createEvent).toHaveBeenCalledWith(
-      calendar.id,
-      expect.objectContaining({
-        start: `${selectedDate}T09:15:00.000Z`,
-        end: `${selectedDate}T10:00:00.000Z`,
-        allDay: false,
-      }),
-    );
     await waitFor(() =>
-      expect(document.querySelectorAll(".skycal__range-preview")).toHaveLength(
-        0,
+      expect(transport.replaceEvent).toHaveBeenCalledTimes(1),
+    );
+    const [, input] = (transport.replaceEvent as ReturnType<typeof vi.fn>).mock
+      .calls[0] as [string, ProductEventInput];
+    expect(input).toMatchObject({
+      title: "Offsite, day two",
+      status: "tentative",
+      visibility: "private",
+      start: start.toISOString(),
+      end: end.toISOString(),
+      attendees: [
+        { email: "ana@example.com", displayName: "Ana", response: "accepted" },
+      ],
+    });
+  });
+
+  it("edits one occurrence by detaching it and excluding its date from the series", async () => {
+    const series = timedEvent({
+      id: "series",
+      title: "Stand-up",
+      recurrenceRule: "FREQ=DAILY",
+    });
+    const transport = transportWith({}, [series]);
+    renderWorkspace(transport);
+
+    const dialog = await openEvent("Stand-up");
+    fireEvent.change(within(dialog).getByLabelText("Title"), {
+      target: { value: "Stand-up, moved" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(transport.replaceEvent).toHaveBeenCalledTimes(1),
+    );
+    const [calendarId, createdInput] = (
+      transport.createEvent as ReturnType<typeof vi.fn>
+    ).mock.calls[0] as [string, ProductEventInput];
+    expect(calendarId).toBe(calendar.id);
+    expect(createdInput.recurrenceRule).toBeUndefined();
+    expect(createdInput.title).toBe("Stand-up, moved");
+    const [seriesId, seriesInput] = (
+      transport.replaceEvent as ReturnType<typeof vi.fn>
+    ).mock.calls[0] as [string, ProductEventInput];
+    expect(seriesId).toBe("series");
+    expect(seriesInput.recurrenceRule).toBe("FREQ=DAILY");
+    expect(seriesInput.recurrenceExceptions).toHaveLength(1);
+  });
+
+  it("keeps a video call on the event until someone removes it", async () => {
+    const conference = {
+      provider: "skydirect" as const,
+      id: "fmYTdnEKrcwM",
+      joinUrl: "https://app.example.test/direct/fmYTdnEKrcwM/",
+    };
+    const transport = transportWith({}, [timedEvent({ conference })]);
+    renderWorkspace(transport);
+
+    const dialog = await openEvent("Planning review");
+    const link = within(dialog).getByRole("link", {
+      name: "Join the video call",
+    });
+    expect(link.getAttribute("href")).toBe(conference.joinUrl);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(transport.replaceEvent).toHaveBeenCalledTimes(1),
+    );
+    const [, input] = (transport.replaceEvent as ReturnType<typeof vi.fn>).mock
+      .calls[0] as [string, ProductEventInput];
+    expect(input.conference).toBeNull();
+  });
+
+  it("creates, renames and deletes a calendar", async () => {
+    const transport = transportWith();
+    renderWorkspace(transport);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Calendar" }));
+    let dialog = await screen.findByRole("dialog", { name: "New calendar" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: { value: "Personal" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(transport.createCalendar).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Personal", timeZone: "UTC" }),
       ),
     );
-  });
+    await screen.findByRole("button", { name: "Personal" });
 
-  it("navigates quarter-hour slots and days with the keyboard", async () => {
-    const listEvents = vi.fn().mockResolvedValue([]);
-    const transport: SkyCalendarTransport = {
-      listCalendars: vi.fn().mockResolvedValue([calendar]),
-      createCalendar: vi.fn(),
-      listEvents,
-      exportEvents: vi.fn(),
-      createEvent: vi.fn(),
-      replaceEvent: vi.fn(),
-      deleteEvent: vi.fn(),
-    };
-
-    render(
-      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
-    );
-    await screen.findAllByRole("button", { name: /open .* in day view/i });
-    fireEvent.click(screen.getByRole("button", { name: "Week" }));
-    await waitFor(() => expect(listEvents).toHaveBeenCalledTimes(2));
-
-    const [start] = screen.getAllByRole("button", {
-      name: /New event,.*, 09:15/,
+    fireEvent.click(screen.getByRole("button", { name: "Edit calendar Team" }));
+    dialog = await screen.findByRole("dialog", { name: "Edit calendar" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: { value: "Crew" },
     });
-    const [nextQuarter] = screen.getAllByRole("button", {
-      name: /New event,.*, 09:30/,
-    });
-    const [, nextQuarterDay] = screen.getAllByRole("button", {
-      name: /New event,.*, 09:30/,
-    });
-    if (!start || !nextQuarter || !nextQuarterDay) {
-      throw new Error("week grid did not expose keyboard destinations");
-    }
-
-    start.focus();
-    fireEvent.keyDown(start, { key: "ArrowDown" });
-    expect(document.activeElement).toBe(nextQuarter);
-    fireEvent.keyDown(nextQuarter, { key: "ArrowRight" });
-    expect(document.activeElement).toBe(nextQuarterDay);
-  });
-
-  it("closes the date composer with Escape and restores focus", async () => {
-    const transport: SkyCalendarTransport = {
-      listCalendars: vi.fn().mockResolvedValue([calendar]),
-      createCalendar: vi.fn(),
-      listEvents: vi.fn().mockResolvedValue([]),
-      exportEvents: vi.fn(),
-      createEvent: vi.fn(),
-      replaceEvent: vi.fn(),
-      deleteEvent: vi.fn(),
-    };
-
-    render(
-      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
-    );
-    await screen.findAllByRole("button", {
-      name: /open .* in day view/i,
-    });
-    const opener = screen.getByRole("button", { name: "New event" });
-    fireEvent.click(opener);
-    fireEvent.keyDown(screen.getByRole("dialog", { name: "New event" }), {
-      key: "Escape",
-    });
-
-    expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
-    expect(document.activeElement).toBe(opener);
-  });
-
-  it("renders bounded recurrence instances in the visible period", async () => {
-    const recurring: ProductEvent = {
-      id: "event-recurring",
-      calendarId: calendar.id,
-      title: "Daily sync",
-      description: null,
-      location: null,
-      start: "2026-09-01T09:00:00.000Z",
-      end: "2026-09-01T09:30:00.000Z",
-      allDay: false,
-      timeZone: "UTC",
-      recurrenceRule: "FREQ=DAILY;COUNT=3",
-      recurrenceExceptions: [],
-      status: "confirmed",
-      visibility: "default",
-      attendees: [],
-    };
-    const transport: SkyCalendarTransport = {
-      listCalendars: vi.fn().mockResolvedValue([calendar]),
-      createCalendar: vi.fn(),
-      listEvents: vi.fn().mockResolvedValue([recurring]),
-      exportEvents: vi.fn().mockResolvedValue([recurring]),
-      createEvent: vi.fn(),
-      replaceEvent: vi.fn(),
-      deleteEvent: vi.fn(),
-    };
-
-    render(
-      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(transport.updateCalendar).toHaveBeenCalledWith(
+        calendar.id,
+        expect.objectContaining({ name: "Crew" }),
+      ),
     );
 
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Edit calendar Crew" }),
+    );
+    dialog = await screen.findByRole("dialog", { name: "Edit calendar" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(transport.deleteCalendar).toHaveBeenCalledWith(calendar.id),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Crew" })).toBeNull(),
+    );
+  });
+
+  it("hides a calendar's events without forgetting them", async () => {
+    const transport = transportWith({}, [timedEvent()]);
+    renderWorkspace(transport);
+
+    await screen.findByRole("button", { name: /Planning review/ });
+    fireEvent.click(screen.getByRole("button", { name: "Team" }));
     expect(
-      await screen.findAllByRole("button", { name: /Daily sync/i }),
-    ).toHaveLength(3);
+      screen.queryByRole("button", { name: /Planning review/ }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Team" }));
+    expect(
+      screen.getByRole("button", { name: /Planning review/ }),
+    ).toBeTruthy();
+    expect(transport.listEvents).toHaveBeenCalledTimes(1);
   });
 
-  it("edits one recurrence by creating an exception instead of replacing the series", async () => {
-    const recurring: ProductEvent = {
-      id: "event-recurring",
-      calendarId: calendar.id,
-      title: "Daily sync",
-      description: null,
-      location: null,
-      start: "2026-09-01T09:00:00.000Z",
-      end: "2026-09-01T09:30:00.000Z",
-      allDay: false,
-      timeZone: "UTC",
-      recurrenceRule: "FREQ=DAILY;COUNT=3",
-      recurrenceExceptions: [],
-      status: "confirmed",
-      visibility: "default",
-      attendees: [],
-    };
-    const standalone = {
-      ...recurring,
-      id: "event-exception",
-      title: "Moved sync",
-      recurrenceRule: null,
-    };
-    const replaceEvent = vi
+  it("offers a real retry after a failed load", async () => {
+    const listEvents = vi
       .fn()
-      .mockImplementation(
-        async (_id: string, input: { recurrenceExceptions?: string[] }) => ({
-          ...recurring,
-          recurrenceExceptions: input.recurrenceExceptions ?? [],
-        }),
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue([timedEvent()]);
+    const onError = vi.fn();
+    renderWorkspace(transportWith({ listEvents }), { onError });
+
+    await screen.findByRole("alert");
+    expect(onError).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByRole("button", { name: /Planning review/ });
+    expect(listEvents).toHaveBeenCalledTimes(2);
+  });
+
+  it("delegates the composer to the host with what it needs to lay itself out", async () => {
+    const seen: SkyCalendarEventComposerRenderProps[] = [];
+    function HostComposer(props: SkyCalendarEventComposerRenderProps) {
+      seen.push(props);
+      return (
+        <section aria-label="Host panel">
+          <button type="button" onClick={props.onClose}>
+            Close host panel
+          </button>
+        </section>
       );
-    const createEvent = vi.fn().mockResolvedValue(standalone);
-    const transport: SkyCalendarTransport = {
-      listCalendars: vi.fn().mockResolvedValue([calendar]),
-      createCalendar: vi.fn(),
-      listEvents: vi.fn().mockResolvedValue([recurring]),
-      exportEvents: vi.fn().mockResolvedValue([recurring]),
-      createEvent,
-      replaceEvent,
-      deleteEvent: vi.fn(),
-    };
+    }
+    renderWorkspace(transportWith(), { eventComposer: HostComposer });
 
-    render(
-      <SkyCalendarWorkspace transport={transport} timeZone="UTC" locale="en" />,
-    );
-    const occurrences = await screen.findAllByRole("button", {
-      name: /Daily sync/i,
+    fireEvent.click(await screen.findByRole("button", { name: /New event/ }));
+    await screen.findByRole("region", { name: "Host panel" });
+    expect(seen.at(-1)).toMatchObject({
+      compact: false,
+      editable: true,
+      error: "",
     });
-    const occurrence = occurrences[1];
-    if (!occurrence) throw new Error("recurrence instance not rendered");
-    fireEvent.click(occurrence);
-    fireEvent.change(screen.getByLabelText("Title"), {
-      target: { value: "Moved sync" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
-
-    await waitFor(() => expect(createEvent).toHaveBeenCalledOnce());
-    expect(replaceEvent).toHaveBeenCalledWith(
-      recurring.id,
-      expect.objectContaining({
-        recurrenceRule: recurring.recurrenceRule,
-        recurrenceExceptions: ["2026-09-02T09:00:00.000Z"],
-      }),
-    );
-    expect(createEvent).toHaveBeenCalledWith(
-      calendar.id,
-      expect.objectContaining({
-        title: "Moved sync",
-        recurrenceRule: undefined,
-      }),
+    expect(seen.at(-1)?.draft.id).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close host panel" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Host panel" })).toBeNull(),
     );
   });
 });
