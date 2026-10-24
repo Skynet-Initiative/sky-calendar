@@ -211,15 +211,10 @@ export {
   type DragTimes,
 } from "./interactions/drag-preview";
 
-// ── Complete product surface ────────────────────────────────────────────────
-export {
-  SkyCalendarWorkspace,
-  type SkyCalendarWorkspaceProps,
-} from "./product/sky-calendar-workspace";
+// ── Product data layer (headless) ───────────────────────────────────────────
 export {
   type ProductAttendee,
   type ProductCalendar,
   type ProductEvent,
   type ProductEventInput,
-  type SkyCalendarTransport,
 } from "./product/types";

@@ -1,39 +1,13 @@
 # @skynet-initiative/sky-calendar
 
-## Product surface
+## Product layer
 
-`@skynet-initiative/sky-calendar/product` is the supported, batteries-included
-calendar workspace used by Ecosystem, built on this package's own month,
-time-grid and agenda views. It is mobile first: a narrow box opens in Agenda,
-the week becomes three days, the built-in dialogs become bottom sheets, and
-drag, resize and create follow the pointer on touch screens as well. It
-manages calendars (create, rename, recolour, hide, delete), events with guests,
-recurrence scope and an attached video call (`conference`), plus ICS/CSV export.
-A host supplies its own `eventComposer` / `calendarComposer` components and
-receives the draft, `editable` and `compact` to lay them out.
-
-```tsx
-import {
-  SkyCalendarWorkspace,
-  type SkyCalendarTransport,
-} from "@skynet-initiative/sky-calendar/product";
-import "@skynet-initiative/sky-calendar/styles.css";
-
-export function CalendarPage({
-  transport,
-}: {
-  transport: SkyCalendarTransport;
-}) {
-  return <SkyCalendarWorkspace transport={transport} timeZone="Europe/Paris" />;
-}
-```
-
-The host implements `SkyCalendarTransport` (calendars: list, create, update,
-delete; events: list, export, create, replace, delete). Keep authentication, entitlement
-checks and package tokens in its server-side BFF; the browser transport only
-calls same-origin authenticated routes. Date strings crossing the transport
-are UTC ISO instants, while `timeZone` is an explicit IANA zone used for input,
-display, recurrence and export.
+`@skynet-initiative/sky-calendar/product` is headless: the data types a host
+transports (`ProductCalendar`, `ProductEvent`, `ProductEventInput`) and the
+arithmetic a calendar screen needs (event drafts that keep guest answers, the
+inclusive all-day end, visible periods per view, moving a series from one of its
+occurrences). The screen itself belongs to the host, built with its own design
+system on the views below; Ecosystem is the reference host.
 
 Moteur React 19 de Sky Calendar : vues mois, semaine, jour, année, agenda et ressources,
 récurrence RFC 5545, fuseaux IANA, interactions clavier/pointeur et exports.

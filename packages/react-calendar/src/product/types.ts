@@ -66,29 +66,3 @@ export interface ProductEventInput {
 export interface ProductEventReplacement extends ProductEventInput {
   calendarId?: string;
 }
-
-/**
- * Everything the workspace needs from its host. The host owns the network,
- * the session and the secrets; the workspace never sees a URL or a cookie.
- */
-export interface SkyCalendarTransport {
-  listCalendars(): Promise<ProductCalendar[]>;
-  createCalendar(input: ProductCalendarInput): Promise<ProductCalendar>;
-  updateCalendar(
-    calendarId: string,
-    input: Partial<ProductCalendarInput>,
-  ): Promise<ProductCalendar>;
-  /** Deletes the calendar and every event it holds. */
-  deleteCalendar(calendarId: string): Promise<void>;
-  listEvents(from: string, to: string): Promise<ProductEvent[]>;
-  exportEvents(): Promise<ProductEvent[]>;
-  createEvent(
-    calendarId: string,
-    input: ProductEventInput,
-  ): Promise<ProductEvent>;
-  replaceEvent(
-    eventId: string,
-    input: ProductEventReplacement,
-  ): Promise<ProductEvent>;
-  deleteEvent(eventId: string): Promise<void>;
-}

@@ -5,4 +5,3 @@ timeline-view.css
 agenda-view.css
 event-dialog.css
 recurrence-editor.css
-product.css

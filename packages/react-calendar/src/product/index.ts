@@ -1,13 +1,9 @@
-export {
-  SkyCalendarWorkspace,
-  type SkyCalendarCalendarComposerRenderProps,
-  type SkyCalendarCalendarDraft,
-  type SkyCalendarEventComposerRenderProps,
-  type SkyCalendarEventDraft,
-  type SkyCalendarEventDraftField,
-  type SkyCalendarView,
-  type SkyCalendarWorkspaceProps,
-} from "./sky-calendar-workspace";
+/**
+ * The headless product layer: the data types a host transports, and the
+ * draft/period arithmetic a calendar screen needs. No component lives here;
+ * the screen belongs to the host, built with the host's own design system,
+ * on top of the views exported by the main entry.
+ */
 export {
   type ProductAttendee,
   type ProductCalendar,
@@ -16,6 +12,38 @@ export {
   type ProductEvent,
   type ProductEventInput,
   type ProductEventReplacement,
-  type SkyCalendarTransport,
 } from "./types";
-export { CALENDAR_COLORS } from "./model";
+export {
+  AGENDA_DAYS,
+  CALENDAR_COLORS,
+  COMPACT_WEEK_DAYS,
+  DEFAULT_CALENDAR_COLOR,
+  changeDraftField,
+  draftErrorMessage,
+  draftFromEvent,
+  emptyDraft,
+  eventInput,
+  inputFromDraft,
+  moveCursor,
+  moveSeriesInput,
+  nextCalendarColor,
+  parseAttendees,
+  periodTitle,
+  roundUpToSlot,
+  scheduleLabel,
+  statusColorsFor,
+  toCalendarEvent,
+  toInstant,
+  visiblePeriod,
+  type SkyCalendarCalendarDraft,
+  type SkyCalendarEventDraft,
+  type SkyCalendarEventDraftField,
+  type SkyCalendarView,
+  type VisiblePeriod,
+} from "./model";
+export {
+  dateKey,
+  instantFromLocalInput,
+  localInputFromInstant,
+  wallDateFromInstant,
+} from "./zoned-time";

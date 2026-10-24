@@ -10,15 +10,14 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "concurrently -k -n frontend,backend -c cyan,green \"bun --filter @sky-calendar/frontend dev\" \"bun --filter @sky-calendar/backend dev\"",
-    "build": "bun run build:contracts && bun run build:calendar && bun run build:frontend && bun run build:backend",
+    "dev": "bun --filter @sky-calendar/backend dev",
+    "build": "bun run build:contracts && bun run build:calendar && bun run build:backend",
     "build:contracts": "bun --filter @skynet-initiative/sky-calendar-contracts build",
     "build:calendar": "bun --filter @skynet-initiative/sky-calendar build && bun scripts/check-bundle-size.mjs",
-    "build:frontend": "bun --filter @sky-calendar/frontend build",
     "build:backend": "bun --filter @sky-calendar/backend build",
     "typecheck": "bun run build:contracts && bun run build:calendar && bun --filter '*' typecheck",
     "lint": "eslint \"{apps,packages}/**/*.{ts,tsx}\" --max-warnings=0",
-    "test": "bun run build:contracts && bun --filter @skynet-initiative/sky-calendar test && bun --filter @skynet-initiative/sky-calendar-contracts test && bun --filter @sky-calendar/backend test && bun --filter @sky-calendar/frontend test",
+    "test": "bun run build:contracts && bun --filter @skynet-initiative/sky-calendar test && bun --filter @skynet-initiative/sky-calendar-contracts test && bun --filter @sky-calendar/backend test",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "db:migrate": "bun --filter @sky-calendar/backend db:migrate"

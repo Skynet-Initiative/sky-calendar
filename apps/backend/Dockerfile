@@ -2,7 +2,6 @@ FROM oven/bun:1.3.14-alpine AS build
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY apps/backend/package.json apps/backend/package.json
-COPY apps/frontend/package.json apps/frontend/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/react-calendar/package.json packages/react-calendar/package.json
 RUN bun install --frozen-lockfile

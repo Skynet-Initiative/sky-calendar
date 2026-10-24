@@ -1,3 +1,5 @@
+import type { DateAdapter } from "../core/date-adapter/date-adapter";
+import type { ZonedDateTime } from "../core/date-adapter/zoned-date-time";
 import type { CalendarEvent } from "../core/model/calendar-event";
 import { sanitizeStatusKey } from "../theme/tokens";
 import type {
@@ -93,13 +95,6 @@ export function toCalendarEvent(
   event: ProductEvent,
   editable: boolean,
 ): CalendarEvent<ProductEvent> {
-  const cssClass = [
-    event.status === "cancelled" ? "skycal-event--cancelled" : "",
-    event.status === "tentative" ? "skycal-event--tentative" : "",
-    event.conference ? "skycal-event--conference" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
   return {
     id: event.id,
     start: new Date(event.start),
@@ -117,7 +112,6 @@ export function toCalendarEvent(
       (value) => new Date(value),
     ),
     editable,
-    ...(cssClass ? { cssClass } : {}),
     meta: event,
   };
 }
@@ -395,4 +389,130 @@ export function roundUpToSlot(
   const wall = wallDateFromInstant(instant, timeZone);
   wall.setUTCMinutes(Math.ceil(wall.getUTCMinutes() / minutes) * minutes, 0, 0);
   return instantFromWallDate(wall, timeZone);
+}
+
+// ── periods ─────────────────────────────────────────────────────────────────
+
+export type SkyCalendarView = "month" | "week" | "day" | "agenda";
+
+export const AGENDA_DAYS = 14;
+export const COMPACT_WEEK_DAYS = 3;
+
+export interface VisiblePeriod {
+  /** Inclusive start instant of the data to fetch. */
+  from: Date;
+  /** Exclusive end instant of the data to fetch. */
+  to: Date;
+  /** The instant the views anchor on. */
+  viewDate: Date;
+}
+
+/**
+ * What a view shows for a cursor date. The month grid always covers six
+ * weeks so a fetch never misses a chip; a compact week is three days starting
+ * on the cursor, since a phone cannot show seven.
+ */
+export function visiblePeriod(
+  dates: DateAdapter,
+  cursor: Date,
+  view: SkyCalendarView,
+  compact: boolean,
+  zone: string,
+  weekStartsOn: number,
+): VisiblePeriod {
+  const anchor = dates.startOfDay(dates.toZoned(cursor, zone));
+  let from: ZonedDateTime;
+  let to: ZonedDateTime;
+  switch (view) {
+    case "month":
+      from = dates.startOfWeek(dates.startOfMonth(anchor), weekStartsOn);
+      to = dates.addDays(from, 42);
+      break;
+    case "week":
+      from = compact ? anchor : dates.startOfWeek(anchor, weekStartsOn);
+      to = dates.addDays(from, compact ? COMPACT_WEEK_DAYS : 7);
+      break;
+    case "day":
+      from = anchor;
+      to = dates.addDays(anchor, 1);
+      break;
+    case "agenda":
+      from = anchor;
+      to = dates.addDays(anchor, AGENDA_DAYS);
+      break;
+  }
+  return {
+    from: new Date(from.epochMs),
+    to: new Date(to.epochMs),
+    viewDate: new Date(anchor.epochMs),
+  };
+}
+
+export function moveCursor(
+  dates: DateAdapter,
+  cursor: Date,
+  view: SkyCalendarView,
+  compact: boolean,
+  zone: string,
+  direction: -1 | 1,
+): Date {
+  const anchor = dates.startOfDay(dates.toZoned(cursor, zone));
+  switch (view) {
+    case "month":
+      return new Date(dates.addMonths(anchor, direction).epochMs);
+    case "week":
+      return new Date(
+        dates.addDays(anchor, direction * (compact ? COMPACT_WEEK_DAYS : 7))
+          .epochMs,
+      );
+    case "day":
+      return new Date(dates.addDays(anchor, direction).epochMs);
+    case "agenda":
+      return new Date(dates.addDays(anchor, direction * AGENDA_DAYS).epochMs);
+  }
+}
+
+export function periodTitle(
+  period: VisiblePeriod,
+  view: SkyCalendarView,
+  locale: string | undefined,
+  timeZone: string,
+): string {
+  if (view === "month") {
+    // The grid starts in the previous month; ten days in is always the month shown.
+    return new Intl.DateTimeFormat(locale, {
+      month: "long",
+      year: "numeric",
+      timeZone,
+    }).format(new Date(period.from.getTime() + 10 * DAY_MS));
+  }
+  if (view === "day") {
+    return new Intl.DateTimeFormat(locale, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone,
+    }).format(period.from);
+  }
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone,
+  }).formatRange(period.from, new Date(period.to.getTime() - DAY_MS));
+}
+
+export function toInstant(value: Date | ZonedDateTime): Date {
+  return value instanceof Date ? value : new Date(value.epochMs);
+}
+
+/** The first palette colour no calendar uses yet. */
+export function nextCalendarColor(
+  calendars: readonly ProductCalendar[],
+): string {
+  const used = new Set(calendars.map((calendar) => calendar.color));
+  return (
+    CALENDAR_COLORS.find((color) => !used.has(color)) ?? DEFAULT_CALENDAR_COLOR
+  );
 }

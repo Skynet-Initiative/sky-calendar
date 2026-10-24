@@ -19,10 +19,9 @@ const BUDGETS = [
   { file: "date-fns.js", kb: 6 },
   { file: "recurrence.js", kb: 6 },
   { file: "export.js", kb: 8 },
-  // The product surface is built on the month, time-grid and agenda views of
-  // the main entry and shares their chunk: a host that imports only
-  // `/product` pays for the views once, here. Measured 34.1 KB on 2026-10-23.
-  { file: "product.js", kb: 36 },
+  // The product entry is headless: data types, draft and period arithmetic.
+  // The screen belongs to the host. Measured 3.8 KB on 2026-10-24.
+  { file: "product.js", kb: 6 },
 ];
 
 let failed = false;
