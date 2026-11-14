@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { contrastRatio, parseHex } from "./color";
 import { deriveTheme, type CalThemeMode } from "./derive-theme";
 import { THEME_TOKEN_NAMES } from "./tokens";
+import { CALENDAR_COLORS } from "../product/model";
 
 const modes: CalThemeMode[] = ["light", "dark"];
 // A spread of base/accent pairs incl. near-black, near-white, saturated, desaturated.
@@ -107,8 +108,35 @@ describe("deriveTheme — event colour map", () => {
       const ink = parseHex(req(`--cal-event-${key}-ink`));
       const soft = parseHex(req(`--cal-event-${key}-soft`));
       const softInk = parseHex(req(`--cal-event-${key}-soft-ink`));
-      expect(contrastRatio(ink, fill)).toBeGreaterThanOrEqual(4.4);
-      expect(contrastRatio(softInk, soft)).toBeGreaterThanOrEqual(4.4);
+      expect(contrastRatio(ink, fill)).toBeGreaterThanOrEqual(7);
+      expect(contrastRatio(softInk, soft)).toBeGreaterThanOrEqual(7);
+    }
+  });
+  it("holds every calendar colour's event text at AAA (7:1), in both modes", () => {
+    for (const mode of ["light", "dark"] as const) {
+      const colours = Object.fromEntries(
+        CALENDAR_COLORS.map((hex, i) => [`c${String(i)}`, hex]),
+      );
+      const t = deriveTheme(
+        mode === "light" ? "#ffffff" : "#0a0a0a",
+        "#3b82f6",
+        mode,
+        colours,
+      );
+      for (const key of Object.keys(colours)) {
+        const fill = parseHex(t[`--cal-event-${key}`] ?? "");
+        const ink = parseHex(t[`--cal-event-${key}-ink`] ?? "");
+        const soft = parseHex(t[`--cal-event-${key}-soft`] ?? "");
+        const softInk = parseHex(t[`--cal-event-${key}-soft-ink`] ?? "");
+        expect(
+          contrastRatio(ink, fill),
+          `${mode} ${key}`,
+        ).toBeGreaterThanOrEqual(7);
+        expect(
+          contrastRatio(softInk, soft),
+          `${mode} ${key} soft`,
+        ).toBeGreaterThanOrEqual(7);
+      }
     }
   });
   it("skips invalid event colours without throwing", () => {

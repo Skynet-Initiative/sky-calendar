@@ -257,17 +257,18 @@ export function deriveTheme(
         );
         continue;
       }
-      // Deepen the colour so white ink is legible on it, then use white everywhere
-      // for a consistent, high-legibility chip (no per-colour black/white flip).
-      const chip = fitFillForInk(fill, WHITE, AA);
+      // Deepen the colour so white ink reads at AAA (7:1) on it — an event title is
+      // small text — then use white everywhere for a consistent chip (no per-colour
+      // black/white flip). The soft variant's ink is held to the same floor.
+      const chip = fitFillForInk(fill, WHITE, AAA);
       const soft = mixOklab(chip, surface, cfg.accentSoftMix);
       tokens[`--cal-event-${key}`] = formatHex(chip);
       tokens[`--cal-event-${key}-ink`] = formatHex(
-        ensureContrastAA(WHITE, chip, AA),
+        ensureContrastAA(WHITE, chip, AAA),
       );
       tokens[`--cal-event-${key}-soft`] = formatHex(soft);
       tokens[`--cal-event-${key}-soft-ink`] = formatHex(
-        ensureContrastAA(chip, soft, AA),
+        ensureContrastAA(chip, soft, AAA),
       );
     }
   }

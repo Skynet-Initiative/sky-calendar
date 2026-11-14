@@ -59,17 +59,29 @@ export interface SkyCalendarCalendarDraft {
 }
 
 export const DEFAULT_CALENDAR_COLOR = "#2563eb";
-export const CALENDAR_COLORS: readonly string[] = [
-  "#2563eb",
-  "#7c3aed",
-  "#db2777",
-  "#dc2626",
-  "#ea580c",
-  "#ca8a04",
-  "#16a34a",
-  "#0d9488",
-  "#475569",
-];
+/** The palette a calendar picks from, each colour with the name a person (or a screen reader) says. */
+const CALENDAR_PALETTE = {
+  "#2563eb": "Blue",
+  "#7c3aed": "Violet",
+  "#db2777": "Pink",
+  "#dc2626": "Red",
+  "#ea580c": "Orange",
+  "#ca8a04": "Yellow",
+  "#16a34a": "Green",
+  "#0d9488": "Teal",
+  "#475569": "Slate",
+} as const satisfies Readonly<Record<string, string>>;
+
+export const CALENDAR_COLORS: readonly string[] = Object.keys(CALENDAR_PALETTE);
+
+/** A palette colour's name; a colour from elsewhere is named by its code. */
+export function calendarColorName(color: string): string {
+  return (
+    (CALENDAR_PALETTE as Readonly<Record<string, string>>)[
+      color.toLowerCase()
+    ] ?? color
+  );
+}
 
 /** The status key the views use to colour an event by its calendar. */
 export function calendarStatusKey(calendarId: string): string {

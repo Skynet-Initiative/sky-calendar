@@ -16,6 +16,7 @@ export {
 export {
   AGENDA_DAYS,
   CALENDAR_COLORS,
+  calendarColorName,
   COMPACT_WEEK_DAYS,
   DEFAULT_CALENDAR_COLOR,
   DRAFT_EVENT_ID,
