@@ -360,16 +360,27 @@ export function CalMonthView<TMeta = unknown>(
     return maxLane + 1 + (hasOverflow ? 1 : 0);
   };
 
-  /** Localized "h:mm a" (or "All day") prefix for an event in the popover. */
-  const morePopoverTime = (event: CalendarEvent<TMeta>): string => {
-    if (event.allDay === true) {
-      return intl.allDay;
-    }
-    return adapter.format(
+  /** Localized start time of a timed event, shown on its chip and in the popover. */
+  const startTime = (event: CalendarEvent<TMeta>): string =>
+    adapter.format(
       adapter.toZoned(event.start, resolvedZone),
       resolveTimeFormat(config.hour12),
       resolvedLocale,
     );
+
+  /** A chip leads with its start time, unless the host renders it or it has none here. */
+  const chipTime = (chip: PositionedChip<TMeta>): string | null =>
+    renderEvent === undefined &&
+    chip.event.allDay !== true &&
+    !chip.continuesBefore
+      ? startTime(chip.event)
+      : null;
+
+  /** The accessible name begins with what the chip shows (WCAG 2.5.3). */
+  const chipLabel = (chip: PositionedChip<TMeta>): string => {
+    const time = chipTime(chip);
+    const label = a11y.eventLabel(chip.event);
+    return time === null ? label : `${time} ${label}`;
   };
 
   return (
@@ -457,15 +468,22 @@ export function CalMonthView<TMeta = unknown>(
                             .filter(Boolean)
                             .join(" ")}
                           style={chipStyle(chip)}
-                          aria-label={a11y.eventLabel(chip.event)}
+                          aria-label={chipLabel(chip)}
                           onClick={(e) => onEventClick(chip.event, e)}
                         >
                           {renderEvent !== undefined ? (
                             renderEvent(chip.event, chip)
                           ) : (
-                            <span className="cal-chip__title">
-                              {chip.event.title}
-                            </span>
+                            <>
+                              {chipTime(chip) !== null && (
+                                <span className="cal-chip__time">
+                                  {chipTime(chip)}
+                                </span>
+                              )}
+                              <span className="cal-chip__title">
+                                {chip.event.title}
+                              </span>
+                            </>
                           )}
                         </button>
                       ))}
@@ -553,7 +571,9 @@ export function CalMonthView<TMeta = unknown>(
                                       }}
                                     ></span>
                                     <span className="cal-more__time">
-                                      {morePopoverTime(event)}
+                                      {event.allDay === true
+                                        ? intl.allDay
+                                        : startTime(event)}
                                     </span>
                                     <span className="cal-more__title">
                                       {event.title}

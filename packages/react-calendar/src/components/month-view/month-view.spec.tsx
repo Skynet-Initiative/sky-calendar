@@ -110,7 +110,35 @@ describe("CalMonthView", () => {
     );
     const chip = el.querySelector(".cal-chip");
     expect(chip?.textContent).toContain("Standup");
-    expect(chip?.getAttribute("aria-label")).toBe("Standup");
+  });
+
+  it("leads a timed chip with its start time, and names it the same way", () => {
+    const event: CalendarEvent = {
+      id: "e1",
+      start: at("2026-06-15T13:00:00Z"),
+      end: at("2026-06-15T14:00:00Z"),
+      title: "Standup",
+    };
+    const allDay: CalendarEvent = {
+      id: "e2",
+      start: at("2026-06-16T04:00:00Z"),
+      title: "Offsite",
+      allDay: true,
+    };
+    const el = render(
+      <CalMonthView
+        events={[event, allDay]}
+        viewDate={at("2026-06-15T12:00:00Z")}
+        weekStartsOn={0}
+        timezone={zone}
+      />,
+    );
+    const [timed, whole] = [...el.querySelectorAll(".cal-chip")];
+    const time = timed?.querySelector(".cal-chip__time")?.textContent ?? "";
+    expect(time).toMatch(/^9:00\s?AM$/);
+    expect(timed?.getAttribute("aria-label")).toBe(`${time} Standup`);
+    expect(whole?.querySelector(".cal-chip__time")).toBeNull();
+    expect(whole?.getAttribute("aria-label")).toBe("Offsite");
   });
 
   it("emits eventClicked when a chip is clicked", () => {

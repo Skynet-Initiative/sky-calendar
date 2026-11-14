@@ -14,6 +14,11 @@
   padding: 0.5rem 0.75rem 0.75rem;
 }
 
+/* The host frames the view: the last day draws no edge of its own. */
+.cal-agenda__day:last-child {
+  border-block-end: 0;
+}
+
 .cal-agenda__date {
   margin: 0 0 0.4rem;
   font-size: 0.8rem;
