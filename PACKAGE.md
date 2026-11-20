@@ -9,9 +9,12 @@
 - Isolation : chaque requête SQL porte `workspace_id` dans son prédicat ; les mutations par ID le
   vérifient atomiquement. Les tokens Ed25519 sont vérifiés hors ligne, avec rotation par liste de
   clés.
-- Cycle de vie : création paresseuse au premier calendrier et purge idempotente du workspace par
-  le plan de contrôle privé lors de la suppression définitive du projet hôte.
-- Rétention : conservation tant que le projet existe ; la purge supprime les calendriers et, par
+- Cycle de vie : création paresseuse au premier calendrier ; purge idempotente du workspace et
+  déplacement idempotent de calendriers nommés d'un workspace à un autre (événements compris), par le
+  plan de contrôle privé. La plateforme s'en sert pour remettre les calendriers d'un projet à son
+  organisation, et pour les rendre en cas de retour arrière.
+- Rétention : conservation tant que l'organisation existe (ou son projet, pour un workspace
+  de projet pas encore déplacé) ; la purge supprime les calendriers et, par
   cascade PostgreSQL, tous leurs événements.
 - Décision : le workspace est la granularité de ressource afin que le gateway puisse dériver un
   ensemble stable depuis les appartenances sans exposer d'organisation ou d'utilisateur.

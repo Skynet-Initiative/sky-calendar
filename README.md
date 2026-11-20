@@ -38,10 +38,16 @@ Ecosystem le construit avec ses propres composants sur les vues de l'entrée pri
 variables du thème hôte. Le CSS publié par `@skynet-initiative/sky-calendar/styles.css` ne porte
 que ces vues.
 
-Ecosystem conserve uniquement son adaptateur BFF. Skynet v2 vérifie le projet et les droits,
-dérive un workspace opaque, puis émet un jeton court limité à `read` ou `manage`. Lors de la
-purge d'un projet, son plan de contrôle appelle `DELETE /api/v1/control/workspaces/:workspaceId`;
-ce point d'entrée idempotent exige `CONTROL_PLANE_TOKEN`.
+Ecosystem conserve uniquement son adaptateur BFF. Skynet v2 vérifie l'organisation et les droits,
+résout un workspace opaque, puis émet un jeton court limité à `read` ou `manage`. Son plan de
+contrôle, qui exige `CONTROL_PLANE_TOKEN`, offre deux points d'entrée idempotents :
+
+- `DELETE /api/v1/control/workspaces/:workspaceId` purge un workspace ;
+- `POST /api/v1/control/workspaces/:from/move-to/:to`, corps `{ "calendarIds": [...] }` (1 à 500),
+  déplace les calendriers nommés de `from` vers `to` avec leurs événements, en une transaction, sans
+  rien modifier d'autre (pas même `updated_at`). La réponse dit où est chaque calendrier :
+  `moved`, `alreadyInTarget` (un rejeu ne change rien), `missing`. Le même appel en sens inverse
+  ramène les calendriers à l'identique.
 
 ## Développement
 

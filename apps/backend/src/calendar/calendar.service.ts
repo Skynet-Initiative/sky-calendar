@@ -204,11 +204,68 @@ export class CalendarService implements OnModuleDestroy {
     if (result.rowCount === 0) throw new NotFoundException("Event not found");
   }
 
+  /**
+   * Re-homes calendars from one workspace to another: the platform's control
+   * plane hands a project's calendars to its organization, and back for a
+   * rollback. Events follow their calendar — they reach a workspace only
+   * through it —, and nothing else of a calendar changes, `updated_at`
+   * included: a move is not an edit, so moving back restores the row as it was.
+   *
+   * Only the named calendars that are in `from` move, in one transaction.
+   * Idempotent: a replay finds them in `to` already and changes nothing. The
+   * answer says where each named calendar is now — moved by this call, already
+   * in `to`, or in neither (deleted since, or never in `from`).
+   */
+  async moveCalendars(
+    from: string,
+    to: string,
+    calendarIds: readonly string[],
+  ): Promise<CalendarMove> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const moved = await client.query<{ id: string }>(
+        `UPDATE calendar SET workspace_id = $2
+          WHERE workspace_id = $1 AND id = ANY($3::uuid[])
+          RETURNING id`,
+        [from, to, calendarIds],
+      );
+      // A statement of its own: under READ COMMITTED it sees what a concurrent
+      // move of the same calendars committed while this one waited on its rows.
+      const inTarget = await client.query<{ id: string }>(
+        "SELECT id FROM calendar WHERE workspace_id = $1 AND id = ANY($2::uuid[])",
+        [to, calendarIds],
+      );
+      await client.query("COMMIT");
+      const movedIds = new Set(moved.rows.map((row) => row.id));
+      const targetIds = new Set(inTarget.rows.map((row) => row.id));
+      return {
+        moved: calendarIds.filter((id) => movedIds.has(id)),
+        alreadyInTarget: calendarIds.filter(
+          (id) => targetIds.has(id) && !movedIds.has(id),
+        ),
+        missing: calendarIds.filter((id) => !targetIds.has(id)),
+      };
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async deleteWorkspace(workspaceId: string): Promise<void> {
     await this.pool.query("DELETE FROM calendar WHERE workspace_id = $1", [
       workspaceId,
     ]);
   }
+}
+
+/** Where each calendar named by a move is once it returns. */
+export interface CalendarMove {
+  moved: string[];
+  alreadyInTarget: string[];
+  missing: string[];
 }
 
 /** The thirteen event columns, in the order the statements bind them. */

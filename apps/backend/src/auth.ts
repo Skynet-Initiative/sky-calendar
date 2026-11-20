@@ -14,7 +14,8 @@ import { jwtVerify } from "jose";
 
 const PUBLIC_ROUTE = "sky-calendar:public";
 const ACTOR_PATTERN = /^act_[0-9a-f]{32}$/;
-const RESOURCE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+/** A workspace id: opaque ASCII, as the platform derives or stores it. */
+export const RESOURCE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_GRANTS = 1_000;
 const CLOCK_TOLERANCE_SECONDS = 30;
 const MAX_TOKEN_LIFETIME_SECONDS = 600;
